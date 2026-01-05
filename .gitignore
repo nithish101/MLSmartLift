@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+venv/
+env/
+.venv/
+
+# ML artifacts (regeneratable)
+backend/ml/training_data.csv
+backend/ml/smartlift_model.pkl
+backend/ml/exercise_encoder.pkl
+
+# Database
+backend/smartlift.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+nohup.out
+
+# Environment
+.env
+.env.local
