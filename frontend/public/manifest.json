@@ -1,0 +1,22 @@
+{
+    "name": "SmartLift",
+    "short_name": "SmartLift",
+    "description": "AI-Powered Strength Training Assistant",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0a0a0f",
+    "theme_color": "#0a0a0f",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/smartlift-icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/smartlift-icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
