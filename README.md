@@ -14,6 +14,15 @@ You log your workouts (exercise, weight, reps, how many reps you had left in the
 
 Right now it supports bench press, squat, and deadlift. The model was trained on synthetic progression data that follows realistic strength curves.
 
+## Screenshots
+
+<div style="display: flex; gap: 10px; overflow-x: auto;">
+  <img src="frontend/screenshots/dashboard.webp" width="24%" alt="Dashboard Screenshot" />
+  <img src="frontend/screenshots/log.webp" width="24%" alt="Log Workout Screenshot" />
+  <img src="frontend/screenshots/ai_coach.webp" width="24%" alt="AI Coach Screenshot" />
+  <img src="frontend/screenshots/explainer.webp" width="24%" alt="Model Explainer Screenshot" />
+</div>
+
 ## The ML side
 
 The model is a `GradientBoostingRegressor` from scikit-learn. It takes in:
