@@ -1,27 +1,30 @@
-"""
-Pydantic models for SmartLift API.
-"""
+"""Request/response schemas for the SmartLift API."""
 
 from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
 
+from app.features import Exercise, ModelInput
 
-# --- Request Models ---
+# --- Requests ---
+
 
 class SetLog(BaseModel):
-    weight: float = Field(..., gt=0, description="Weight in lbs")
+    weight: float = Field(..., gt=0, le=1500, description="Weight in lbs")
     reps: int = Field(..., ge=1, le=30, description="Reps completed")
     rir: int = Field(..., ge=-1, le=4, description="Reps in reserve (-1 = failure)")
 
 
 class WorkoutCreate(BaseModel):
-    exercise: str = Field(..., description="Exercise name: bench_press, squat, deadlift")
-    bodyweight: float = Field(..., gt=0, description="User bodyweight in lbs")
-    sets: list[SetLog] = Field(..., min_length=1, description="List of sets performed")
+    exercise: Exercise
+    bodyweight: float = Field(..., ge=50, le=700, description="User bodyweight in lbs")
+    sets: list[SetLog] = Field(..., min_length=1, max_length=20)
 
 
-# --- Response Models ---
+class PredictRequest(ModelInput):
+    """Feature vector for a single rep prediction."""
+
+
+# --- Responses ---
+
 
 class SetResponse(BaseModel):
     set_number: int
@@ -44,6 +47,12 @@ class WorkoutResponse(BaseModel):
     created_at: str
 
 
+class PredictResponse(BaseModel):
+    predicted_reps: int
+    raw_prediction: float
+    outcome: str
+
+
 class Recommendation(BaseModel):
     exercise: str
     recommended_weight: float
@@ -61,10 +70,15 @@ class ProgressPoint(BaseModel):
     exercise: str
 
 
+class WeeklyScore(BaseModel):
+    week: str
+    score: int
+
+
 class VolumeScoreResponse(BaseModel):
     current_score: int
     interpretation: str
-    weekly_scores: list[dict]
+    weekly_scores: list[WeeklyScore]
 
 
 class PredictedVsActual(BaseModel):
@@ -77,3 +91,9 @@ class PredictedVsActual(BaseModel):
 class Alert(BaseModel):
     type: str
     message: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    database: str
+    model_loaded: bool

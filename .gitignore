@@ -11,12 +11,16 @@ env/
 .venv/
 
 # ML artifacts (regeneratable)
-backend/ml/training_data.csv
-backend/ml/smartlift_model.pkl
-backend/ml/exercise_encoder.pkl
+backend/artifacts/
+*.joblib
 
-# Database
-backend/smartlift.db
+# Test / tooling output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # IDE
 .vscode/
@@ -38,3 +42,4 @@ nohup.out
 # Environment
 .env
 .env.local
+!.env.example

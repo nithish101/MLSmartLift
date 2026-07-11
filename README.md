@@ -29,18 +29,20 @@ The model is a `GradientBoostingRegressor` from scikit-learn. It takes in:
 
 | Feature | Importance |
 |---------|-----------|
-| Weight lifted | 35.5% |
-| Bodyweight | 31.3% |
-| Progression trend | 13.0% |
-| Exercise type | 9.9% |
-| Volume score | 6.2% |
-| RIR | 1.8% |
-| Sets | 1.3% |
-| Frequency | 1.0% |
+| Weight lifted | 35.7% |
+| Bodyweight | 32.7% |
+| Progression trend | 11.8% |
+| Exercise type | 10.2% |
+| Volume score | 5.5% |
+| Sets | 1.6% |
+| RIR | 1.5% |
+| Frequency | 1.1% |
+
+Frequency, sets, volume score and progression trend are derived from your logged history (sessions in the last week, average sets per session, the latest session's training stress, and the slope of your top-set weight over the last five sessions).
 
 It predicts how many reps you'll get at a given weight. From there, the recommendation engine decides whether to increase weight (if predicted reps > 9), decrease (if < 5), or stay put. Target range is 5–9 reps at RIR 2, which is a solid hypertrophy zone.
 
-Current performance: **MAE of 1.12 reps** on the test set. Not perfect, but good enough to be useful — and it gets better as it sees more of your data.
+Current performance: **MAE of 1.15 reps** (RMSE 1.41) on a held-out 20% of the synthetic data. Not perfect, but good enough to be useful.
 
 1RM is estimated with the Epley formula (adjusted for RIR):
 
@@ -50,32 +52,40 @@ e1RM = weight × (1 + (reps + RIR) / 30)
 
 ## Tech stack
 
-- **Backend**: FastAPI + SQLite + scikit-learn
+- **Backend**: FastAPI + PostgreSQL (SQLAlchemy) + scikit-learn
 - **Frontend**: React (Vite) with Recharts for visualizations
 - **Styling**: Custom CSS, dark theme, mobile-first
 - **Deployment**: PWA-ready (can be added to iPhone home screen)
 
 ## Running it locally
 
-### Backend
+### With Docker (recommended)
+
+```bash
+cp .env.example .env
+docker compose up --build
+# API      → http://localhost:8000 (docs at /docs)
+# Frontend → http://localhost:5173
+
+# Optional: load ~4 weeks of demo workouts
+docker compose exec api python -m app.seed
+```
+
+The API image trains the model at build time, so there's nothing else to set up.
+
+### Backend without Docker
+
+Needs Python 3.11+, [uv](https://docs.astral.sh/uv/), and a PostgreSQL to point at.
 
 ```bash
 cd backend
-pip install -r requirements.txt
-
-# Generate training data and train the model
-python -m ml.generate_data
-python -m ml.train_model
-
-# Seed with demo data (optional, gives you something to look at right away)
-python seed_demo.py
-
-# Start the API
-python main.py
-# → http://localhost:8000 (docs at /docs)
+uv sync
+uv run python -m app.ml.train --out artifacts/model.joblib
+export DATABASE_URL=postgresql+psycopg://smartlift:smartlift@localhost:5432/smartlift
+uv run uvicorn app.main:app --reload
 ```
 
-### Frontend
+### Frontend without Docker
 
 ```bash
 cd frontend
@@ -88,18 +98,35 @@ npm run dev
 
 Start the frontend with `npm run dev -- --host`, then open your local IP in Safari and add to home screen. It'll run as a standalone app without the browser chrome.
 
+## Tests
+
+```bash
+cd backend
+uv run pytest
+```
+
+Unit tests cover feature computation, input validation and the recommendation logic. Integration tests start a throwaway PostgreSQL with [testcontainers](https://testcontainers.com/) (Docker must be running) and hit the real API, including `POST /predict` against a freshly trained model. Coverage is reported on `app/` and the run fails below 70%. To reuse an existing database instead of a container, set `TEST_DATABASE_URL`.
+
 ## Project structure
 
 ```
+docker-compose.yml   — postgres + api + frontend
 backend/
-  main.py           — FastAPI endpoints
-  database.py       — SQLite setup
-  models.py         — request/response schemas
-  seed_demo.py      — populates DB with demo workouts
-  ml/
-    generate_data.py — synthetic training data
-    train_model.py   — model training
-    predictor.py     — inference, 1RM, volume, recovery
+  app/
+    main.py          — FastAPI app and endpoints
+    db.py            — SQLAlchemy engine and tables
+    schemas.py       — request/response schemas
+    features.py      — feature validation and history-derived features
+    repository.py    — database queries
+    model_service.py — loads the fitted model, serves predictions
+    seed.py          — populates the DB with demo workouts
+    ml/
+      generate_data.py — synthetic training data
+      train.py         — model training
+      predictor.py     — recommendations, 1RM, recovery, alerts
+  tests/
+    unit/            — pure logic
+    integration/     — API against real Postgres
 
 frontend/
   src/
