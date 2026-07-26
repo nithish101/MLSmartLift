@@ -13,6 +13,8 @@ env/
 # ML artifacts (regeneratable)
 backend/artifacts/
 *.joblib
+mlruns/
+mlartifacts/
 
 # Test / tooling output
 .pytest_cache/

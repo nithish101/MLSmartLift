@@ -80,8 +80,8 @@ def main() -> None:  # pragma: no cover - CLI wrapper
     settings = get_settings()
     engine = make_engine(settings.database_url)
     init_db(engine)
-    service = ModelService(settings.model_path)
-    service.load()
+    service = ModelService(settings.mlflow_tracking_uri, settings.model_name, settings.model_stage)
+    service.safe_refresh()
     with make_session_factory(engine)() as db:
         total = seed(db, service if service.loaded else None)
     print(f"Seeded {total} demo workouts across {len(DEMO_WORKOUTS)} exercises")

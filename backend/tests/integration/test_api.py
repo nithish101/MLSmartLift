@@ -38,7 +38,16 @@ def log(client: TestClient, exercise: str, weight: float, reps: int = 8, rir: in
 def test_health_reports_db_and_model(client):
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "database": "ok", "model_loaded": True}
+    assert resp.json() == {"status": "ok", "database": "ok", "model_loaded": True, "model_version": 1}
+
+
+def test_version_reports_registry_model(client, production_model):
+    body = client.get("/version").json()
+    assert body["model_name"] == production_model.name
+    assert body["model_stage"] == "Production"
+    assert body["model_version"] == production_model.version
+    assert body["run_id"] == production_model.run_id
+    assert body["loaded_at"]
 
 
 class TestPredict:
@@ -48,6 +57,7 @@ class TestPredict:
         body = resp.json()
         assert 1 <= body["predicted_reps"] <= 15
         assert body["outcome"] in {"decrease", "maintain", "increase"}
+        assert body["model_version"] == 1
         # Served prediction matches the trained pipeline exactly.
         from app.features import ModelInput, to_frame
 
@@ -168,10 +178,11 @@ class TestAnalytics:
         assert len(seeded.get("/workouts", params={"limit": 500}).json()) == total
 
 
-def test_service_degrades_without_model(database_url, tmp_path):
-    app = create_app(Settings(database_url=database_url, model_path=str(tmp_path / "none.joblib")))
+def test_service_degrades_without_model(database_url, mlflow_uri):
+    app = create_app(Settings(database_url=database_url, mlflow_tracking_uri=mlflow_uri, model_name="no-such-model"))
     with TestClient(app) as c:
         assert c.get("/health").json()["status"] == "degraded"
+        assert c.get("/version").json()["model_version"] is None
         assert c.post("/predict", json=PREDICT_BODY).status_code == 503
         log(c, "squat", 200)  # logging still works without a model
         assert c.get("/recommendation/squat").status_code == 503

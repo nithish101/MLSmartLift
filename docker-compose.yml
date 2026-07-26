@@ -15,16 +15,52 @@ services:
       timeout: 3s
       retries: 20
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.14.0
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+      --serve-artifacts
+      --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5050,127.0.0.1,127.0.0.1:5050
+    volumes:
+      - mlflow-data:/mlflow
+    ports:
+      - "5050:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: registers and promotes a first model if nothing is in Production yet.
+  trainer:
+    build: ./backend
+    command: ["python", "-m", "app.ml.train", "--bootstrap"]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-smartlift}:${POSTGRES_PASSWORD:-smartlift}@postgres:5432/${POSTGRES_DB:-smartlift}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_STAGE: ${MODEL_STAGE:-Production}
+      MODEL_REFRESH_SECONDS: ${MODEL_REFRESH_SECONDS:-30}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      trainer:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -40,3 +76,4 @@ services:
 
 volumes:
   postgres-data:
+  mlflow-data:

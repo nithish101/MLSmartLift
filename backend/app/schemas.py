@@ -1,6 +1,6 @@
 """Request/response schemas for the SmartLift API."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.features import Exercise, ModelInput
 
@@ -48,9 +48,12 @@ class WorkoutResponse(BaseModel):
 
 
 class PredictResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     predicted_reps: int
     raw_prediction: float
     outcome: str
+    model_version: int
 
 
 class Recommendation(BaseModel):
@@ -94,6 +97,20 @@ class Alert(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     status: str
     database: str
     model_loaded: bool
+    model_version: int | None
+
+
+class VersionResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    app_version: str
+    model_name: str
+    model_stage: str
+    model_version: int | None
+    run_id: str | None
+    loaded_at: str | None

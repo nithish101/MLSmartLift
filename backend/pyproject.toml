@@ -14,6 +14,8 @@ dependencies = [
     "pandas>=2.2",
     "numpy>=1.26",
     "joblib>=1.4",
+    "mlflow-skinny==3.14.0",
+    "skops>=0.10",
 ]
 
 [dependency-groups]
@@ -53,4 +55,4 @@ exclude_lines = [
 
 [tool.uv]
 # Resolve only releases published before this date, for reproducible locks.
-exclude-newer = "2026-07-11T00:00:00Z"
+exclude-newer = "2026-07-26T00:00:00Z"

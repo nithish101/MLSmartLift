@@ -5,8 +5,9 @@ AI-powered strength training assistant API.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -30,6 +31,7 @@ from app.schemas import (
     Recommendation,
     RecoveryEstimate,
     SetResponse,
+    VersionResponse,
     VolumeScoreResponse,
     WeeklyScore,
     WorkoutCreate,
@@ -44,12 +46,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = make_engine(settings.database_url, settings.db_pool_size, settings.db_max_overflow)
         init_db(engine)
-        model_service = ModelService(settings.model_path)
-        model_service.load()
+        model_service = ModelService(settings.mlflow_tracking_uri, settings.model_name, settings.model_stage)
+        await asyncio.to_thread(model_service.safe_refresh)
         app.state.engine = engine
         app.state.session_factory = make_session_factory(engine)
         app.state.model_service = model_service
+        app.state.settings = settings
+        poller = asyncio.create_task(model_service.poll(settings.model_refresh_seconds))
         yield
+        poller.cancel()
+        with suppress(asyncio.CancelledError):
+            await poller
         engine.dispose()
 
     app = FastAPI(
@@ -114,17 +121,40 @@ def register_routes(app: FastAPI) -> None:
         except Exception:
             database = "unavailable"
         status = "ok" if database == "ok" and model.loaded else "degraded"
-        return HealthResponse(status=status, database=database, model_loaded=model.loaded)
+        current = model.current
+        return HealthResponse(
+            status=status,
+            database=database,
+            model_loaded=current is not None,
+            model_version=current.ref.version if current else None,
+        )
+
+    @app.get("/version", response_model=VersionResponse)
+    def version(request: Request, model: Model) -> VersionResponse:
+        """The app version and the registry model version currently serving."""
+        settings: Settings = request.app.state.settings
+        current = model.current
+        return VersionResponse(
+            app_version=settings.app_version,
+            model_name=model.model_name,
+            model_stage=model.stage,
+            model_version=current.ref.version if current else None,
+            run_id=current.ref.run_id if current else None,
+            loaded_at=current.loaded_at.isoformat() if current else None,
+        )
 
     @app.post("/predict", response_model=PredictResponse)
     def predict(req: PredictRequest, model: Model) -> PredictResponse:
         """Predict reps for one feature vector."""
         try:
-            raw = model.predict([req])[0]
+            preds, ref = model.predict_with_version([req])
         except ModelUnavailableError as exc:
             raise _model_unavailable() from exc
+        raw = preds[0]
         reps = predictor.round_reps(raw)
-        return PredictResponse(predicted_reps=reps, raw_prediction=raw, outcome=predictor.outcome_for(reps))
+        return PredictResponse(
+            predicted_reps=reps, raw_prediction=raw, outcome=predictor.outcome_for(reps), model_version=ref.version
+        )
 
     @app.post("/workouts", response_model=WorkoutResponse)
     def create_workout(workout: WorkoutCreate, db: DB, model: Model) -> WorkoutResponse:

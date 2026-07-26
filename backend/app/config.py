@@ -19,8 +19,13 @@ class Settings(BaseSettings):
     db_pool_size: int = 10
     db_max_overflow: int = 20
 
-    # Path to the fitted scikit-learn pipeline produced by `python -m app.ml.train`.
-    model_path: str = "artifacts/model.joblib"
+    # MLflow tracking server / model registry.
+    mlflow_tracking_uri: str = "http://localhost:5050"
+    mlflow_experiment: str = "smartlift"
+    model_name: str = "smartlift-reps"
+    # Registry stage the API serves; re-checked every model_refresh_seconds.
+    model_stage: str = "Production"
+    model_refresh_seconds: float = 30.0
 
     # Comma-separated list of allowed CORS origins ("*" for any).
     cors_origins: str = "*"

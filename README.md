@@ -53,6 +53,7 @@ e1RM = weight × (1 + (reps + RIR) / 30)
 ## Tech stack
 
 - **Backend**: FastAPI + PostgreSQL (SQLAlchemy) + scikit-learn
+- **Model registry**: MLflow (tracking server + registry; the API serves whatever version is in `Production`)
 - **Frontend**: React (Vite) with Recharts for visualizations
 - **Styling**: Custom CSS, dark theme, mobile-first
 - **Deployment**: PWA-ready (can be added to iPhone home screen)
@@ -66,22 +67,37 @@ cp .env.example .env
 docker compose up --build
 # API      → http://localhost:8000 (docs at /docs)
 # Frontend → http://localhost:5173
+# MLflow   → http://localhost:5050
 
 # Optional: load ~4 weeks of demo workouts
 docker compose exec api python -m app.seed
 ```
 
-The API image trains the model at build time, so there's nothing else to set up.
+On a fresh start the one-shot `trainer` service trains a model, registers it in MLflow and promotes it to `Production`; the API waits for it and then loads the model from the registry.
+
+### Training and promoting a model
+
+```bash
+# Train a new version and park it in Staging
+docker compose run --rm trainer python -m app.ml.train --stage Staging
+
+# See what's registered, then promote
+docker compose exec api python -m app.registry list
+docker compose exec api python -m app.registry promote --version 2 --stage Production
+```
+
+The API checks the registry every `MODEL_REFRESH_SECONDS` (default 30) and hot-swaps to the new Production version — no restart or redeploy. `GET /version` shows the version currently serving.
 
 ### Backend without Docker
 
-Needs Python 3.11+, [uv](https://docs.astral.sh/uv/), and a PostgreSQL to point at.
+Needs Python 3.11+, [uv](https://docs.astral.sh/uv/), and a PostgreSQL and MLflow server to point at (`docker compose up postgres mlflow` works).
 
 ```bash
 cd backend
 uv sync
-uv run python -m app.ml.train --out artifacts/model.joblib
 export DATABASE_URL=postgresql+psycopg://smartlift:smartlift@localhost:5432/smartlift
+export MLFLOW_TRACKING_URI=http://localhost:5050   # e.g. the compose mlflow service
+uv run python -m app.ml.train --bootstrap
 uv run uvicorn app.main:app --reload
 ```
 
@@ -105,12 +121,12 @@ cd backend
 uv run pytest
 ```
 
-Unit tests cover feature computation, input validation and the recommendation logic. Integration tests start a throwaway PostgreSQL with [testcontainers](https://testcontainers.com/) (Docker must be running) and hit the real API, including `POST /predict` against a freshly trained model. Coverage is reported on `app/` and the run fails below 70%. To reuse an existing database instead of a container, set `TEST_DATABASE_URL`.
+Unit tests cover feature computation, input validation and the recommendation logic. Integration tests start a throwaway PostgreSQL and MLflow server with [testcontainers](https://testcontainers.com/) (Docker must be running) and hit the real API, including `POST /predict` against a model loaded from the registry, and a promotion that the running app picks up without a restart. Coverage is reported on `app/` and the run fails below 70%. To reuse running services instead of containers, set `TEST_DATABASE_URL` / `TEST_MLFLOW_URI`.
 
 ## Project structure
 
 ```
-docker-compose.yml   — postgres + api + frontend
+docker-compose.yml   — postgres, mlflow, trainer (bootstrap), api, frontend
 backend/
   app/
     main.py          — FastAPI app and endpoints
@@ -118,15 +134,16 @@ backend/
     schemas.py       — request/response schemas
     features.py      — feature validation and history-derived features
     repository.py    — database queries
-    model_service.py — loads the fitted model, serves predictions
+    model_service.py — loads the Production model from MLflow, hot-swaps on promotion
+    registry.py      — stage lookup/promotion helpers + `python -m app.registry` CLI
     seed.py          — populates the DB with demo workouts
     ml/
       generate_data.py — synthetic training data
-      train.py         — model training
+      train.py         — training, MLflow logging and registration
       predictor.py     — recommendations, 1RM, recovery, alerts
   tests/
     unit/            — pure logic
-    integration/     — API against real Postgres
+    integration/     — API against real Postgres + MLflow
 
 frontend/
   src/

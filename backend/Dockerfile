@@ -16,8 +16,5 @@ RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Train the model at build time so the image is self-contained.
-RUN python -m app.ml.train --out artifacts/model.joblib
-
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
