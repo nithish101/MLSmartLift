@@ -54,6 +54,7 @@ e1RM = weight × (1 + (reps + RIR) / 30)
 
 - **Backend**: FastAPI + PostgreSQL (SQLAlchemy) + scikit-learn
 - **Model registry**: MLflow (tracking server + registry; the API serves whatever version is in `Production`)
+- **Cache**: Redis — inference results keyed by model version + a SHA-256 of the feature vector (TTL 1h), and the per-exercise history features the recommendation endpoints derive from Postgres (TTL 5 min, invalidated when a workout is logged). If Redis is down the API keeps serving uncached. Hit/miss counts are reported in `GET /health`.
 - **Frontend**: React (Vite) with Recharts for visualizations
 - **Styling**: Custom CSS, dark theme, mobile-first
 - **Deployment**: PWA-ready (can be added to iPhone home screen)
@@ -121,12 +122,12 @@ cd backend
 uv run pytest
 ```
 
-Unit tests cover feature computation, input validation and the recommendation logic. Integration tests start a throwaway PostgreSQL and MLflow server with [testcontainers](https://testcontainers.com/) (Docker must be running) and hit the real API, including `POST /predict` against a model loaded from the registry, and a promotion that the running app picks up without a restart. Coverage is reported on `app/` and the run fails below 70%. To reuse running services instead of containers, set `TEST_DATABASE_URL` / `TEST_MLFLOW_URI`.
+Unit tests cover feature computation, input validation and the recommendation logic. Integration tests start throwaway PostgreSQL, Redis and MLflow containers with [testcontainers](https://testcontainers.com/) (Docker must be running) and hit the real API, including `POST /predict` against a model loaded from the registry, a promotion that the running app picks up without a restart, and the cold → warm cache path. Coverage is reported on `app/` and the run fails below 70%. To reuse running services instead of containers, set `TEST_DATABASE_URL` / `TEST_REDIS_URL` / `TEST_MLFLOW_URI`.
 
 ## Project structure
 
 ```
-docker-compose.yml   — postgres, mlflow, trainer (bootstrap), api, frontend
+docker-compose.yml   — postgres, redis, mlflow, trainer (bootstrap), api, frontend
 backend/
   app/
     main.py          — FastAPI app and endpoints
@@ -134,6 +135,8 @@ backend/
     schemas.py       — request/response schemas
     features.py      — feature validation and history-derived features
     repository.py    — database queries
+    cache.py         — Redis cache with hit/miss accounting
+    inference.py     — cached predictions and cached history-feature lookups
     model_service.py — loads the Production model from MLflow, hot-swaps on promotion
     registry.py      — stage lookup/promotion helpers + `python -m app.registry` CLI
     seed.py          — populates the DB with demo workouts
@@ -143,7 +146,7 @@ backend/
       predictor.py     — recommendations, 1RM, recovery, alerts
   tests/
     unit/            — pure logic
-    integration/     — API against real Postgres + MLflow
+    integration/     — API against real Postgres, Redis and MLflow
 
 frontend/
   src/

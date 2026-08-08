@@ -1,9 +1,9 @@
 """
 Shared fixtures.
 
-Integration tests run against a real PostgreSQL and a real MLflow tracking
-server, both started with testcontainers (requires Docker). Set
-TEST_DATABASE_URL / TEST_MLFLOW_URI to reuse running services instead.
+Integration tests run against real PostgreSQL, Redis and MLflow tracking
+server containers started with testcontainers (requires Docker). Set
+TEST_DATABASE_URL / TEST_REDIS_URL / TEST_MLFLOW_URI to reuse running services.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import uuid
 from collections.abc import Iterator
 
 import pytest
+import redis
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
@@ -46,10 +47,29 @@ def database_url() -> Iterator[str]:
     if url := os.environ.get("TEST_DATABASE_URL"):
         yield url
         return
-    from testcontainers.postgres import PostgresContainer
+    from testcontainers.community.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16-alpine", driver="psycopg") as pg:
         yield pg.get_connection_url()
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    if url := os.environ.get("TEST_REDIS_URL"):
+        yield url
+        return
+    from testcontainers.community.redis import RedisContainer
+
+    with RedisContainer("redis:7-alpine") as container:
+        yield f"redis://{container.get_container_host_ip()}:{container.get_exposed_port(6379)}/0"
+
+
+@pytest.fixture
+def redis_client(redis_url: str) -> Iterator[redis.Redis]:
+    client = redis.Redis.from_url(redis_url, decode_responses=True)
+    client.flushdb()
+    yield client
+    client.close()
 
 
 def _wait_http(url: str, timeout: float = 90) -> None:
@@ -102,9 +122,12 @@ def production_model(mlflow_uri: str, trained, training_frame) -> ModelRef:
 
 
 @pytest.fixture
-def settings(database_url: str, mlflow_uri: str, production_model: ModelRef) -> Settings:
+def settings(
+    database_url: str, mlflow_uri: str, redis_url: str, redis_client: redis.Redis, production_model: ModelRef
+) -> Settings:
     return Settings(
         database_url=database_url,
+        redis_url=redis_url,
         mlflow_tracking_uri=mlflow_uri,
         model_name=production_model.name,
         model_refresh_seconds=3600,

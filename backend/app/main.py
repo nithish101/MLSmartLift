@@ -16,13 +16,16 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import repository
+from app.cache import Cache
 from app.config import Settings, get_settings
 from app.db import Prediction, Workout, WorkoutSet, init_db, make_engine, make_session_factory
-from app.features import Exercise, ModelInput, calculate_volume_score, compute_context
+from app.features import Exercise, ModelInput, calculate_volume_score
+from app.inference import Inference
 from app.ml import predictor
 from app.model_service import ModelService, ModelUnavailableError
 from app.schemas import (
     Alert,
+    CacheStatsEntry,
     HealthResponse,
     PredictedVsActual,
     PredictRequest,
@@ -52,11 +55,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.session_factory = make_session_factory(engine)
         app.state.model_service = model_service
         app.state.settings = settings
+        cache = Cache(settings.redis_url)
+        app.state.inference = Inference(
+            model_service, cache, settings.prediction_cache_ttl_seconds, settings.feature_cache_ttl_seconds
+        )
         poller = asyncio.create_task(model_service.poll(settings.model_refresh_seconds))
         yield
         poller.cancel()
         with suppress(asyncio.CancelledError):
             await poller
+        cache.close()
         engine.dispose()
 
     app = FastAPI(
@@ -89,8 +97,14 @@ def get_model(request: Request) -> ModelService:
     return service
 
 
+def get_inference(request: Request) -> Inference:
+    inference: Inference = request.app.state.inference
+    return inference
+
+
 DB = Annotated[Session, Depends(get_db)]
 Model = Annotated[ModelService, Depends(get_model)]
+Infer = Annotated[Inference, Depends(get_inference)]
 
 
 def _serialize_workout(w: Workout) -> WorkoutResponse:
@@ -114,7 +128,7 @@ def _model_unavailable() -> HTTPException:
 
 def register_routes(app: FastAPI) -> None:
     @app.get("/health", response_model=HealthResponse)
-    def health(db: DB, model: Model) -> HealthResponse:
+    def health(db: DB, model: Model, inference: Infer) -> HealthResponse:
         try:
             db.execute(text("SELECT 1"))
             database = "ok"
@@ -127,6 +141,10 @@ def register_routes(app: FastAPI) -> None:
             database=database,
             model_loaded=current is not None,
             model_version=current.ref.version if current else None,
+            cache="ok" if inference.cache.ping() else "unavailable",
+            cache_stats={
+                name: CacheStatsEntry.model_validate(entry) for name, entry in inference.cache.stats.snapshot().items()
+            },
         )
 
     @app.get("/version", response_model=VersionResponse)
@@ -144,20 +162,22 @@ def register_routes(app: FastAPI) -> None:
         )
 
     @app.post("/predict", response_model=PredictResponse)
-    def predict(req: PredictRequest, model: Model) -> PredictResponse:
-        """Predict reps for one feature vector."""
+    def predict(req: PredictRequest, inference: Infer) -> PredictResponse:
+        """Predict reps for one feature vector (served from cache when seen before)."""
         try:
-            preds, ref = model.predict_with_version([req])
+            result = inference.predict(req)
         except ModelUnavailableError as exc:
             raise _model_unavailable() from exc
-        raw = preds[0]
-        reps = predictor.round_reps(raw)
         return PredictResponse(
-            predicted_reps=reps, raw_prediction=raw, outcome=predictor.outcome_for(reps), model_version=ref.version
+            predicted_reps=result.reps,
+            raw_prediction=result.raw,
+            outcome=result.outcome,
+            model_version=result.model_version,
+            cached=result.cached,
         )
 
     @app.post("/workouts", response_model=WorkoutResponse)
-    def create_workout(workout: WorkoutCreate, db: DB, model: Model) -> WorkoutResponse:
+    def create_workout(workout: WorkoutCreate, db: DB, model: Model, inference: Infer) -> WorkoutResponse:
         """Log a new workout with sets."""
         row = Workout(exercise=workout.exercise, bodyweight=workout.bodyweight)
         row.sets = [
@@ -173,7 +193,7 @@ def register_routes(app: FastAPI) -> None:
             features = ModelInput(
                 exercise=workout.exercise, weight=top.weight, rir=top.rir, bodyweight=workout.bodyweight
             )
-            predicted = predictor.round_reps(model.predict([features])[0])
+            predicted = inference.predict(features).reps
             db.add(
                 Prediction(
                     workout_id=row.id,
@@ -184,6 +204,7 @@ def register_routes(app: FastAPI) -> None:
                 )
             )
         db.commit()
+        inference.invalidate_features(workout.exercise)
         db.refresh(row)
         return _serialize_workout(row)
 
@@ -200,11 +221,11 @@ def register_routes(app: FastAPI) -> None:
     def get_recommendation(
         exercise: Exercise,
         db: DB,
-        model: Model,
+        inference: Infer,
         bodyweight: Annotated[float, Query(ge=50, le=700)] = 180,
     ) -> Recommendation:
         """AI recommendation for the next session."""
-        context = compute_context(repository.session_history(db, exercise), exercise)
+        context = inference.history_features(db, exercise).context
         if context is None:
             return Recommendation(
                 exercise=exercise,
@@ -214,7 +235,7 @@ def register_routes(app: FastAPI) -> None:
                 confidence=0.5,
             )
         try:
-            rec = predictor.recommend_next_session(model, exercise, bodyweight, context)
+            rec = predictor.recommend_next_session(inference.pinned_model(), exercise, bodyweight, context)
         except ModelUnavailableError as exc:
             raise _model_unavailable() from exc
         return Recommendation(**rec)  # type: ignore[arg-type]
@@ -271,14 +292,11 @@ def register_routes(app: FastAPI) -> None:
         ]
 
     @app.get("/alerts/{exercise}", response_model=list[Alert])
-    def get_alerts(exercise: Exercise, db: DB) -> list[Alert]:
-        history = repository.session_history(db, exercise)
-        context = compute_context(history, exercise)
-        if context is None:
+    def get_alerts(exercise: Exercise, db: DB, inference: Infer) -> list[Alert]:
+        features = inference.history_features(db, exercise)
+        if features.context is None:
             return []
-        alerts = predictor.generate_alerts(
-            [s.top_weight for s in history], [s.top_rir for s in history], context.volume_score
-        )
+        alerts = predictor.generate_alerts(features.top_weights, features.top_rirs, features.context.volume_score)
         return [Alert(**a) for a in alerts]
 
 

@@ -38,7 +38,12 @@ def log(client: TestClient, exercise: str, weight: float, reps: int = 8, rir: in
 def test_health_reports_db_and_model(client):
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "database": "ok", "model_loaded": True, "model_version": 1}
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["database"] == "ok"
+    assert body["model_loaded"] is True
+    assert body["model_version"] == 1
+    assert body["cache"] == "ok"
 
 
 def test_version_reports_registry_model(client, production_model):
@@ -178,8 +183,13 @@ class TestAnalytics:
         assert len(seeded.get("/workouts", params={"limit": 500}).json()) == total
 
 
-def test_service_degrades_without_model(database_url, mlflow_uri):
-    app = create_app(Settings(database_url=database_url, mlflow_tracking_uri=mlflow_uri, model_name="no-such-model"))
+def test_service_degrades_without_model(database_url, mlflow_uri, redis_url, redis_client):
+    app = create_app(Settings(
+            database_url=database_url,
+            redis_url=redis_url,
+            mlflow_tracking_uri=mlflow_uri,
+            model_name="no-such-model",
+        ))
     with TestClient(app) as c:
         assert c.get("/health").json()["status"] == "degraded"
         assert c.get("/version").json()["model_version"] is None

@@ -44,6 +44,9 @@ class LoadedModel:
     model: Any
     loaded_at: datetime
 
+    def predict(self, inputs: Sequence[ModelInput]) -> list[float]:
+        return [float(v) for v in self.model.predict(to_frame(inputs))]
+
 
 class ModelService:
     def __init__(self, tracking_uri: str, model_name: str, stage: str) -> None:
@@ -98,12 +101,12 @@ class ModelService:
             await asyncio.sleep(interval_seconds)
             await asyncio.to_thread(self.safe_refresh)
 
-    def predict_with_version(self, inputs: Sequence[ModelInput]) -> tuple[list[float], ModelRef]:
+    def require(self) -> LoadedModel:
+        """The current model snapshot; raises if none is loaded."""
         snapshot = self._current
         if snapshot is None:
             raise ModelUnavailableError("no model loaded")
-        preds = snapshot.model.predict(to_frame(inputs))
-        return [float(v) for v in preds], snapshot.ref
+        return snapshot
 
     def predict(self, inputs: Sequence[ModelInput]) -> list[float]:
-        return self.predict_with_version(inputs)[0]
+        return self.require().predict(inputs)

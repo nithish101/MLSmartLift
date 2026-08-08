@@ -68,12 +68,16 @@ def test_service_swaps_on_promotion_without_restart(mlflow_uri, client_mlflow, m
 
 
 def test_api_picks_up_promotion_via_polling(
-    database_url, mlflow_uri, client_mlflow, model_name, trained, training_frame
+    database_url, redis_url, redis_client, mlflow_uri, client_mlflow, model_name, trained, training_frame
 ):
     register(mlflow_uri, model_name, trained, training_frame, "Production")
     v2 = register(mlflow_uri, model_name, trained, training_frame, "Staging")
     settings = Settings(
-        database_url=database_url, mlflow_tracking_uri=mlflow_uri, model_name=model_name, model_refresh_seconds=0.2
+        database_url=database_url,
+        redis_url=redis_url,
+        mlflow_tracking_uri=mlflow_uri,
+        model_name=model_name,
+        model_refresh_seconds=0.2,
     )
     with TestClient(create_app(settings)) as c:
         assert c.get("/version").json()["model_version"] == 1

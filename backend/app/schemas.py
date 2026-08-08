@@ -54,6 +54,7 @@ class PredictResponse(BaseModel):
     raw_prediction: float
     outcome: str
     model_version: int
+    cached: bool
 
 
 class Recommendation(BaseModel):
@@ -96,6 +97,12 @@ class Alert(BaseModel):
     message: str
 
 
+class CacheStatsEntry(BaseModel):
+    hits: int
+    misses: int
+    hit_ratio: float
+
+
 class HealthResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -103,6 +110,8 @@ class HealthResponse(BaseModel):
     database: str
     model_loaded: bool
     model_version: int | None
+    cache: str
+    cache_stats: dict[str, CacheStatsEntry]
 
 
 class VersionResponse(BaseModel):

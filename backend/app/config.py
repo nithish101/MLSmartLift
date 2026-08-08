@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     model_stage: str = "Production"
     model_refresh_seconds: float = 30.0
 
+    # Redis cache. Predictions are keyed by model version + feature hash;
+    # history features are invalidated whenever a workout is logged.
+    redis_url: str = "redis://localhost:6379/0"
+    prediction_cache_ttl_seconds: int = 3600
+    feature_cache_ttl_seconds: int = 300
+
     # Comma-separated list of allowed CORS origins ("*" for any).
     cors_origins: str = "*"
 

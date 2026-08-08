@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.cache import Cache, features_key
 from app.config import get_settings
 from app.db import Prediction, Workout, WorkoutSet, init_db, make_engine, make_session_factory
 from app.features import ModelInput
@@ -84,6 +85,9 @@ def main() -> None:  # pragma: no cover - CLI wrapper
     service.safe_refresh()
     with make_session_factory(engine)() as db:
         total = seed(db, service if service.loaded else None)
+    cache = Cache(settings.redis_url)
+    for exercise in DEMO_WORKOUTS:
+        cache.delete(features_key(exercise))  # history changed underneath the feature cache
     print(f"Seeded {total} demo workouts across {len(DEMO_WORKOUTS)} exercises")
 
 

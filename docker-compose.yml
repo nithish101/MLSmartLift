@@ -15,6 +15,18 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    # Pure cache: no persistence, evict least-recently-used keys when full.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   mlflow:
     image: ghcr.io/mlflow/mlflow:v3.14.0
     command: >
@@ -51,11 +63,16 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MODEL_STAGE: ${MODEL_STAGE:-Production}
       MODEL_REFRESH_SECONDS: ${MODEL_REFRESH_SECONDS:-30}
+      REDIS_URL: redis://redis:6379/0
+      PREDICTION_CACHE_TTL_SECONDS: ${PREDICTION_CACHE_TTL_SECONDS:-3600}
+      FEATURE_CACHE_TTL_SECONDS: ${FEATURE_CACHE_TTL_SECONDS:-300}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       mlflow:
         condition: service_healthy
