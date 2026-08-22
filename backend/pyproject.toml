@@ -17,6 +17,7 @@ dependencies = [
     "mlflow-skinny==3.14.0",
     "skops>=0.10",
     "redis>=5.0",
+    "prometheus-client>=0.20",
 ]
 
 [dependency-groups]
@@ -56,4 +57,4 @@ exclude_lines = [
 
 [tool.uv]
 # Resolve only releases published before this date, for reproducible locks.
-exclude-newer = "2026-08-08T00:00:00Z"
+exclude-newer = "2026-08-22T00:00:00Z"

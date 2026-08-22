@@ -55,6 +55,7 @@ e1RM = weight × (1 + (reps + RIR) / 30)
 - **Backend**: FastAPI + PostgreSQL (SQLAlchemy) + scikit-learn
 - **Model registry**: MLflow (tracking server + registry; the API serves whatever version is in `Production`)
 - **Cache**: Redis — inference results keyed by model version + a SHA-256 of the feature vector (TTL 1h), and the per-exercise history features the recommendation endpoints derive from Postgres (TTL 5 min, invalidated when a workout is logged). If Redis is down the API keeps serving uncached. Hit/miss counts are reported in `GET /health`.
+- **Observability**: Prometheus metrics at `GET /metrics` (request latency by route, inference latency split by cache hit/miss, cache hit ratio, the serving model version, predictions by outcome), JSON logs with a per-request `X-Request-ID`, and a Grafana dashboard provisioned from `observability/grafana/dashboards/smartlift.json`.
 - **Frontend**: React (Vite) with Recharts for visualizations
 - **Styling**: Custom CSS, dark theme, mobile-first
 - **Deployment**: PWA-ready (can be added to iPhone home screen)
@@ -69,6 +70,8 @@ docker compose up --build
 # API      → http://localhost:8000 (docs at /docs)
 # Frontend → http://localhost:5173
 # MLflow   → http://localhost:5050
+# Grafana  → http://localhost:3000 (dashboard "SmartLift API")
+# Prometheus → http://localhost:9090
 
 # Optional: load ~4 weeks of demo workouts
 docker compose exec api python -m app.seed
@@ -127,7 +130,8 @@ Unit tests cover feature computation, input validation and the recommendation lo
 ## Project structure
 
 ```
-docker-compose.yml   — postgres, redis, mlflow, trainer (bootstrap), api, frontend
+docker-compose.yml   — postgres, redis, mlflow, trainer (bootstrap), api, prometheus, grafana, frontend
+observability/       — Prometheus scrape config, Grafana provisioning + dashboard JSON
 backend/
   app/
     main.py          — FastAPI app and endpoints
@@ -137,6 +141,8 @@ backend/
     repository.py    — database queries
     cache.py         — Redis cache with hit/miss accounting
     inference.py     — cached predictions and cached history-feature lookups
+    metrics.py       — Prometheus metric definitions
+    observability.py — JSON logging, request-id + latency middleware
     model_service.py — loads the Production model from MLflow, hot-swaps on promotion
     registry.py      — stage lookup/promotion helpers + `python -m app.registry` CLI
     seed.py          — populates the DB with demo workouts

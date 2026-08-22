@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     app_name: str = "SmartLift API"
     app_version: str = "1.1.0"
 
+    log_level: str = "INFO"
+
     database_url: str = "postgresql+psycopg://smartlift:smartlift@localhost:5432/smartlift"
     db_pool_size: int = 10
     db_max_overflow: int = 20

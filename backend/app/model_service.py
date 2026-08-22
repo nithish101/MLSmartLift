@@ -21,6 +21,7 @@ import mlflow.sklearn
 from mlflow import MlflowClient
 
 from app.features import ModelInput, to_frame
+from app.metrics import MODEL_RELOADS, MODEL_VERSION
 from app.registry import ModelRef, latest_in_stage
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class ModelService:
         self._client = MlflowClient(tracking_uri=tracking_uri, registry_uri=tracking_uri)
         self._current: LoadedModel | None = None
         self._refresh_lock = threading.Lock()
+        MODEL_VERSION.labels(model_name, stage).set(0)
 
     @property
     def current(self) -> LoadedModel | None:
@@ -80,6 +82,8 @@ class ModelService:
             mlflow.set_tracking_uri(self.tracking_uri)
             model = mlflow.sklearn.load_model(f"models:/{ref.name}/{ref.version}")
             self._current = LoadedModel(ref=ref, model=model, loaded_at=datetime.now(UTC))
+            MODEL_VERSION.labels(self.model_name, self.stage).set(ref.version)
+            MODEL_RELOADS.inc()
             logger.info(
                 "loaded model %s v%s (%s)",
                 ref.name,

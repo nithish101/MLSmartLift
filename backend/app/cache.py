@@ -17,6 +17,8 @@ from typing import Any
 
 import redis
 
+from app.metrics import CACHE_ERRORS, CACHE_HIT_RATIO, CACHE_REQUESTS
+
 logger = logging.getLogger(__name__)
 
 KEY_PREFIX = "smartlift"
@@ -48,10 +50,14 @@ class CacheStats:
         with self._lock:
             bucket = self.hits if hit else self.misses
             bucket[cache] = bucket.get(cache, 0) + 1
+            h, m = self.hits.get(cache, 0), self.misses.get(cache, 0)
+        CACHE_REQUESTS.labels(cache, "hit" if hit else "miss").inc()
+        CACHE_HIT_RATIO.labels(cache).set(h / (h + m))
 
     def record_error(self) -> None:
         with self._lock:
             self.errors += 1
+        CACHE_ERRORS.inc()
 
     def snapshot(self) -> dict[str, dict[str, int | float]]:
         with self._lock:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from app import repository
 from app.cache import Cache, features_key, prediction_key
 from app.features import ModelInput, TrainingContext, compute_context
+from app.metrics import INFERENCE_LATENCY, PREDICTIONS
 from app.ml import predictor
 from app.model_service import LoadedModel, ModelService
 
@@ -80,6 +82,7 @@ class Inference:
         return self.predict_with(self.models.require(), features)
 
     def predict_with(self, loaded: LoadedModel, features: ModelInput) -> PredictionResult:
+        start = time.perf_counter()
         key = prediction_key(loaded.ref.version, features.as_row())
         cached = self.cache.get_json(PREDICTION_CACHE, key)
         if cached is not None:
@@ -88,10 +91,13 @@ class Inference:
             raw = loaded.predict([features])[0]
             self.cache.set_json(key, raw, self.prediction_ttl_seconds)
         reps = predictor.round_reps(raw)
+        outcome = predictor.outcome_for(reps)
+        INFERENCE_LATENCY.labels("hit" if cached is not None else "miss").observe(time.perf_counter() - start)
+        PREDICTIONS.labels(outcome).inc()
         return PredictionResult(
             raw=raw,
             reps=reps,
-            outcome=predictor.outcome_for(reps),
+            outcome=outcome,
             model_version=loaded.ref.version,
             cached=cached is not None,
         )

@@ -6,12 +6,14 @@ AI-powered strength training assistant API.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, suppress
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,7 @@ from app.features import Exercise, ModelInput, calculate_volume_score
 from app.inference import Inference
 from app.ml import predictor
 from app.model_service import ModelService, ModelUnavailableError
+from app.observability import RequestContextMiddleware, configure_logging
 from app.schemas import (
     Alert,
     CacheStatsEntry,
@@ -41,9 +44,12 @@ from app.schemas import (
     WorkoutResponse,
 )
 
+logger = logging.getLogger("smartlift.api")
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -79,7 +85,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
+    app.add_middleware(RequestContextMiddleware)
     register_routes(app)
     return app
 
@@ -147,6 +155,10 @@ def register_routes(app: FastAPI) -> None:
             },
         )
 
+    @app.get("/metrics", include_in_schema=False)
+    def metrics() -> Response:
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
     @app.get("/version", response_model=VersionResponse)
     def version(request: Request, model: Model) -> VersionResponse:
         """The app version and the registry model version currently serving."""
@@ -205,6 +217,10 @@ def register_routes(app: FastAPI) -> None:
             )
         db.commit()
         inference.invalidate_features(workout.exercise)
+        logger.info(
+            "workout logged",
+            extra={"workout_id": row.id, "exercise": workout.exercise, "sets": len(workout.sets)},
+        )
         db.refresh(row)
         return _serialize_workout(row)
 
