@@ -9,6 +9,7 @@ from app.config import Settings
 from app.db import make_engine, make_session_factory
 from app.main import create_app
 from app.seed import DEMO_WORKOUTS, seed
+from tests.conftest import truncate_all
 
 pytestmark = pytest.mark.integration
 
@@ -197,9 +198,4 @@ def test_service_degrades_without_model(database_url, mlflow_uri, redis_url, red
         log(c, "squat", 200)  # logging still works without a model
         assert c.get("/recommendation/squat").status_code == 503
         assert c.get("/predicted-vs-actual/squat").json() == []
-    engine = make_engine(database_url)
-    with engine.begin() as conn:
-        from sqlalchemy import text
-
-        conn.execute(text("TRUNCATE predictions, sets, workouts RESTART IDENTITY CASCADE"))
-    engine.dispose()
+    truncate_all(database_url)

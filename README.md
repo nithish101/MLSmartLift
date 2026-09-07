@@ -56,6 +56,7 @@ e1RM = weight × (1 + (reps + RIR) / 30)
 - **Model registry**: MLflow (tracking server + registry; the API serves whatever version is in `Production`)
 - **Cache**: Redis — inference results keyed by model version + a SHA-256 of the feature vector (TTL 1h), and the per-exercise history features the recommendation endpoints derive from Postgres (TTL 5 min, invalidated when a workout is logged). If Redis is down the API keeps serving uncached. Hit/miss counts are reported in `GET /health`.
 - **Observability**: Prometheus metrics at `GET /metrics` (request latency by route, inference latency split by cache hit/miss, cache hit ratio, the serving model version, predictions by outcome), JSON logs with a per-request `X-Request-ID`, and a Grafana dashboard provisioned from `observability/grafana/dashboards/smartlift.json`.
+- **Drift detection**: each training run logs the training feature distribution next to the model in MLflow. Every served prediction's features are written (buffered, off the request path) to `inference_log`, and the `drift-worker` container runs an APScheduler job every 5 minutes that computes the Population Stability Index of each feature over the last 24h of traffic for the Production version. Results go to the `drift_results` table and `GET /drift`, PSI is exported as `smartlift_feature_psi{feature}`, and any feature above 0.2 is logged as a warning.
 - **Frontend**: React (Vite) with Recharts for visualizations
 - **Styling**: Custom CSS, dark theme, mobile-first
 - **Deployment**: PWA-ready (can be added to iPhone home screen)
@@ -130,7 +131,7 @@ Unit tests cover feature computation, input validation and the recommendation lo
 ## Project structure
 
 ```
-docker-compose.yml   — postgres, redis, mlflow, trainer (bootstrap), api, prometheus, grafana, frontend
+docker-compose.yml   — postgres, redis, mlflow, trainer (bootstrap), api, drift-worker, prometheus, grafana, frontend
 observability/       — Prometheus scrape config, Grafana provisioning + dashboard JSON
 backend/
   app/
@@ -143,6 +144,9 @@ backend/
     inference.py     — cached predictions and cached history-feature lookups
     metrics.py       — Prometheus metric definitions
     observability.py — JSON logging, request-id + latency middleware
+    inference_log.py — buffered writer for served-prediction features
+    drift.py         — training reference, PSI, drift check
+    drift_worker.py  — APScheduler process running the drift check
     model_service.py — loads the Production model from MLflow, hot-swaps on promotion
     registry.py      — stage lookup/promotion helpers + `python -m app.registry` CLI
     seed.py          — populates the DB with demo workouts

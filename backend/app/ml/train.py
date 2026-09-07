@@ -3,8 +3,9 @@ Train the Gradient Boosting rep-prediction model and register it in MLflow.
 
 The fitted artifact is a scikit-learn Pipeline that takes a DataFrame with
 ``FEATURE_COLUMNS`` (exercise as a string) and returns predicted reps. Each run
-logs its parameters, MAE/RMSE/R2 and the model to the tracking server, and
-registers the model as a new version of ``MODEL_NAME``.
+logs its parameters, MAE/RMSE/R2, the model and the training feature
+distribution (drift reference) to the tracking server, and registers the model
+as a new version of ``MODEL_NAME``.
 
     python -m app.ml.train                      # train + register (no stage)
     python -m app.ml.train --stage Staging      # ... and move it to Staging
@@ -33,6 +34,7 @@ from mlflow import MlflowClient
 from mlflow.models import infer_signature
 from sklearn.preprocessing import OrdinalEncoder
 
+from app.drift import REFERENCE_ARTIFACT, compute_reference
 from app.features import EXERCISES, FEATURE_COLUMNS, NUMERIC_FEATURES
 from app.ml.generate_data import generate_dataset
 from app.registry import STAGES, ModelRef, latest_in_stage, promote
@@ -110,6 +112,8 @@ def log_and_register(
         mlflow.log_params({**result.params, "n_samples": len(df), **(extra_params or {})})
         mlflow.log_metrics(result.metrics)
         mlflow.log_metrics({f"importance_{k}": v for k, v in result.feature_importance.items()})
+        # Training feature distribution, the baseline for drift detection on this version.
+        mlflow.log_dict(compute_reference(df), REFERENCE_ARTIFACT)
         info = mlflow.sklearn.log_model(
             result.pipeline,
             name="model",

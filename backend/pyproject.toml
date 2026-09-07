@@ -18,6 +18,7 @@ dependencies = [
     "skops>=0.10",
     "redis>=5.0",
     "prometheus-client>=0.20",
+    "apscheduler>=3.10,<4",
 ]
 
 [dependency-groups]
@@ -57,4 +58,4 @@ exclude_lines = [
 
 [tool.uv]
 # Resolve only releases published before this date, for reproducible locks.
-exclude-newer = "2026-08-22T00:00:00Z"
+exclude-newer = "2026-09-06T00:00:00Z"

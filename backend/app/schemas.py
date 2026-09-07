@@ -123,3 +123,19 @@ class VersionResponse(BaseModel):
     model_version: int | None
     run_id: str | None
     loaded_at: str | None
+
+
+class DriftFeature(BaseModel):
+    feature: str
+    psi: float
+    threshold: float
+    drifted: bool
+
+
+class DriftResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    computed_at: str | None
+    model_version: int | None
+    sample_size: int
+    features: list[DriftFeature]

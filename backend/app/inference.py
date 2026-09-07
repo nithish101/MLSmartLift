@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app import repository
 from app.cache import Cache, features_key, prediction_key
 from app.features import ModelInput, TrainingContext, compute_context
+from app.inference_log import InferenceLogger
 from app.metrics import INFERENCE_LATENCY, PREDICTIONS
 from app.ml import predictor
 from app.model_service import LoadedModel, ModelService
@@ -62,7 +63,7 @@ class _PinnedModel:
         self._loaded = loaded
 
     def predict(self, inputs: Sequence[ModelInput]) -> list[float]:
-        return [self._inference.predict_with(self._loaded, i).raw for i in inputs]
+        return [self._inference.predict_with(self._loaded, i, source="recommendation").raw for i in inputs]
 
 
 class Inference:
@@ -72,16 +73,18 @@ class Inference:
         cache: Cache,
         prediction_ttl_seconds: int,
         feature_ttl_seconds: int,
+        inference_log: InferenceLogger | None = None,
     ) -> None:
         self.models = models
         self.cache = cache
+        self.inference_log = inference_log
         self.prediction_ttl_seconds = prediction_ttl_seconds
         self.feature_ttl_seconds = feature_ttl_seconds
 
-    def predict(self, features: ModelInput) -> PredictionResult:
-        return self.predict_with(self.models.require(), features)
+    def predict(self, features: ModelInput, source: str = "predict") -> PredictionResult:
+        return self.predict_with(self.models.require(), features, source)
 
-    def predict_with(self, loaded: LoadedModel, features: ModelInput) -> PredictionResult:
+    def predict_with(self, loaded: LoadedModel, features: ModelInput, source: str = "predict") -> PredictionResult:
         start = time.perf_counter()
         key = prediction_key(loaded.ref.version, features.as_row())
         cached = self.cache.get_json(PREDICTION_CACHE, key)
@@ -94,6 +97,8 @@ class Inference:
         outcome = predictor.outcome_for(reps)
         INFERENCE_LATENCY.labels("hit" if cached is not None else "miss").observe(time.perf_counter() - start)
         PREDICTIONS.labels(outcome).inc()
+        if self.inference_log is not None:
+            self.inference_log.record(features, loaded.ref.version, raw, cached is not None, source)
         return PredictionResult(
             raw=raw,
             reps=reps,

@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     prediction_cache_ttl_seconds: int = 3600
     feature_cache_ttl_seconds: int = 300
 
+    # Drift detection. The worker compares served features from the last
+    # drift_window_hours with the model's training reference every
+    # drift_interval_seconds and flags features whose PSI exceeds the threshold.
+    drift_window_hours: float = 24.0
+    drift_interval_seconds: int = 300
+    drift_min_samples: int = 200
+    drift_max_samples: int = 50_000
+    drift_psi_threshold: float = 0.2
+    drift_metrics_port: int = 9101
+    # Served predictions are buffered and bulk-inserted into inference_log.
+    inference_log_flush_seconds: float = 1.0
+    inference_log_buffer_size: int = 10_000
+
     # Comma-separated list of allowed CORS origins ("*" for any).
     cors_origins: str = "*"
 

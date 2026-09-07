@@ -85,6 +85,24 @@ services:
       timeout: 3s
       retries: 10
 
+  # Scheduled PSI drift check (APScheduler); exports PSI gauges on :9101 for Prometheus.
+  drift-worker:
+    build: ./backend
+    command: ["python", "-m", "app.drift_worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-smartlift}:${POSTGRES_PASSWORD:-smartlift}@postgres:5432/${POSTGRES_DB:-smartlift}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_STAGE: ${MODEL_STAGE:-Production}
+      DRIFT_INTERVAL_SECONDS: ${DRIFT_INTERVAL_SECONDS:-300}
+      DRIFT_WINDOW_HOURS: ${DRIFT_WINDOW_HOURS:-24}
+      DRIFT_MIN_SAMPLES: ${DRIFT_MIN_SAMPLES:-200}
+      DRIFT_PSI_THRESHOLD: ${DRIFT_PSI_THRESHOLD:-0.2}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v3.5.0
     volumes:
@@ -93,6 +111,7 @@ services:
       - "9090:9090"
     depends_on:
       - api
+      - drift-worker
 
   grafana:
     image: grafana/grafana:12.1.0

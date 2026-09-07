@@ -48,3 +48,22 @@ PREDICTIONS = Counter(
     "Predictions by the weight change they imply",
     ["outcome"],  # decrease | maintain | increase
 )
+
+INFERENCE_LOG_DROPPED = Counter(
+    "smartlift_inference_log_dropped_total",
+    "Inference-log rows dropped because the write buffer was full or a flush failed",
+)
+
+FEATURE_PSI = Gauge(
+    "smartlift_feature_psi",
+    "Population Stability Index of each model feature vs. its training reference (latest drift check)",
+    ["feature"],
+)
+
+DRIFT_SAMPLES = Gauge("smartlift_drift_window_samples", "Live predictions in the latest drift check's window")
+
+DRIFT_CHECKS = Counter(
+    "smartlift_drift_checks_total",
+    "Drift checks by result",
+    ["status"],  # ok | drift | insufficient_data | no_model | no_reference
+)

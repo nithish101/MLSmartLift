@@ -22,13 +22,17 @@ from app.cache import Cache
 from app.config import Settings, get_settings
 from app.db import Prediction, Workout, WorkoutSet, init_db, make_engine, make_session_factory
 from app.features import Exercise, ModelInput, calculate_volume_score
+from app.drift import latest_results
 from app.inference import Inference
+from app.inference_log import InferenceLogger
 from app.ml import predictor
 from app.model_service import ModelService, ModelUnavailableError
 from app.observability import RequestContextMiddleware, configure_logging
 from app.schemas import (
     Alert,
     CacheStatsEntry,
+    DriftFeature,
+    DriftResponse,
     HealthResponse,
     PredictedVsActual,
     PredictRequest,
@@ -62,14 +66,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.model_service = model_service
         app.state.settings = settings
         cache = Cache(settings.redis_url)
+        inference_log = InferenceLogger(
+            app.state.session_factory, settings.inference_log_flush_seconds, settings.inference_log_buffer_size
+        )
+        inference_log.start()
         app.state.inference = Inference(
-            model_service, cache, settings.prediction_cache_ttl_seconds, settings.feature_cache_ttl_seconds
+            model_service,
+            cache,
+            settings.prediction_cache_ttl_seconds,
+            settings.feature_cache_ttl_seconds,
+            inference_log,
         )
         poller = asyncio.create_task(model_service.poll(settings.model_refresh_seconds))
         yield
         poller.cancel()
         with suppress(asyncio.CancelledError):
             await poller
+        await asyncio.to_thread(inference_log.stop)
         cache.close()
         engine.dispose()
 
@@ -205,7 +218,7 @@ def register_routes(app: FastAPI) -> None:
             features = ModelInput(
                 exercise=workout.exercise, weight=top.weight, rir=top.rir, bodyweight=workout.bodyweight
             )
-            predicted = inference.predict(features).reps
+            predicted = inference.predict(features, source="workout").reps
             db.add(
                 Prediction(
                     workout_id=row.id,
@@ -306,6 +319,22 @@ def register_routes(app: FastAPI) -> None:
             )
             for p in repository.predictions_for(db, exercise)
         ]
+
+    @app.get("/drift", response_model=DriftResponse)
+    def get_drift(db: DB) -> DriftResponse:
+        """Per-feature PSI from the most recent drift check."""
+        rows = latest_results(db)
+        if not rows:
+            return DriftResponse(computed_at=None, model_version=None, sample_size=0, features=[])
+        first = rows[0]
+        return DriftResponse(
+            computed_at=first.computed_at.isoformat(),
+            model_version=first.model_version,
+            sample_size=first.sample_size,
+            features=[
+                DriftFeature(feature=r.feature, psi=r.psi, threshold=r.threshold, drifted=r.drifted) for r in rows
+            ],
+        )
 
     @app.get("/alerts/{exercise}", response_model=list[Alert])
     def get_alerts(exercise: Exercise, db: DB, inference: Infer) -> list[Alert]:

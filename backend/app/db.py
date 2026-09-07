@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, create_engine, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, create_engine, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
@@ -66,6 +66,46 @@ class Prediction(Base):
     )
 
     __table_args__ = (Index("ix_predictions_exercise_created_at", "exercise", "created_at"),)
+
+
+class InferenceLog(Base):
+    """Features of every served prediction; the live side of drift detection."""
+
+    __tablename__ = "inference_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    model_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    exercise: Mapped[str] = mapped_column(String(32), nullable=False)
+    weight: Mapped[float] = mapped_column(Float, nullable=False)
+    rir: Mapped[int] = mapped_column(Integer, nullable=False)
+    bodyweight: Mapped[float] = mapped_column(Float, nullable=False)
+    num_sets: Mapped[int] = mapped_column(Integer, nullable=False)
+    frequency: Mapped[int] = mapped_column(Integer, nullable=False)
+    volume_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    progression_trend: Mapped[float] = mapped_column(Float, nullable=False)
+    predicted: Mapped[float] = mapped_column(Float, nullable=False)
+    cached: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    __table_args__ = (Index("ix_inference_log_version_created_at", "model_version", "created_at"),)
+
+
+class DriftResult(Base):
+    """PSI of one feature from one drift check."""
+
+    __tablename__ = "drift_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    model_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    feature: Mapped[str] = mapped_column(String(64), nullable=False)
+    psi: Mapped[float] = mapped_column(Float, nullable=False)
+    sample_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    drifted: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
 
 def make_engine(url: str, pool_size: int = 10, max_overflow: int = 20) -> Engine:

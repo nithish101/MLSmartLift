@@ -20,13 +20,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.config import Settings
-from app.db import make_engine
+from app.db import init_db, make_engine
 from app.main import create_app
 from app.ml.generate_data import generate_dataset
 from app.ml.train import log_and_register, train
 from app.registry import ModelRef, promote
 
 MLFLOW_IMAGE = "ghcr.io/mlflow/mlflow:v3.14.0"
+TABLES = ("predictions", "sets", "workouts", "inference_log", "drift_results")
 
 FAST_PARAMS = {"n_estimators": 60, "max_depth": 4}
 
@@ -134,12 +135,18 @@ def settings(
     )
 
 
+def truncate_all(database_url: str) -> None:
+    engine = make_engine(database_url)
+    init_db(engine)
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"))
+    engine.dispose()
+
+
 @pytest.fixture
 def client(settings: Settings) -> Iterator[TestClient]:
+    truncate_all(settings.database_url)  # other apps may have flushed rows on shutdown
     app = create_app(settings)
     with TestClient(app) as c:
         yield c
-    engine = make_engine(settings.database_url)
-    with engine.begin() as conn:
-        conn.execute(text("TRUNCATE predictions, sets, workouts RESTART IDENTITY CASCADE"))
-    engine.dispose()
+    truncate_all(settings.database_url)
