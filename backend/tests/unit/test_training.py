@@ -43,3 +43,12 @@ def test_heavier_load_predicts_fewer_reps(trained):
         ])
     )
     assert heavy < light
+
+
+def test_pipeline_needs_only_the_reviewed_skops_types(trained):
+    import skops.io
+
+    from app.ml.train import SKOPS_TRUSTED_TYPES
+
+    untrusted = skops.io.get_untrusted_types(data=skops.io.dumps(trained.pipeline))
+    assert set(untrusted) <= set(SKOPS_TRUSTED_TYPES)

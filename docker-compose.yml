@@ -130,6 +130,27 @@ services:
     depends_on:
       - prometheus
 
+  # Load generator + performance gate. Not started by `docker compose up`; run with
+  # `docker compose --profile loadtest run --rm loadtest` (or backend/loadtest/run.sh).
+  loadtest:
+    profiles: ["loadtest"]
+    build:
+      context: ./backend
+      dockerfile: loadtest/Dockerfile
+    environment:
+      API_URL: http://api:8000
+      TARGET_RPS: ${TARGET_RPS:-50}
+      WARMUP_SECONDS: ${WARMUP_SECONDS:-30}
+      TEST_SECONDS: ${TEST_SECONDS:-120}
+      PERF_MAX_P99_MS: ${PERF_MAX_P99_MS:-250}
+      PERF_MAX_ERROR_RATE: ${PERF_MAX_ERROR_RATE:-0.001}
+      PERF_MIN_RPS_RATIO: ${PERF_MIN_RPS_RATIO:-0.9}
+    volumes:
+      - ./backend/loadtest/results:/results
+    depends_on:
+      api:
+        condition: service_healthy
+
   frontend:
     build: ./frontend
     ports:

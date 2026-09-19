@@ -41,6 +41,10 @@ from app.registry import STAGES, ModelRef, latest_in_stage, promote
 
 logger = logging.getLogger(__name__)
 
+# Types skops won't load without an explicit opt-in. We only ever load models this
+# pipeline trained and registered itself; tests assert nothing else is needed.
+SKOPS_TRUSTED_TYPES = ["sklearn.tree._tree.Tree"]
+
 DEFAULT_PARAMS: dict[str, Any] = {
     "n_estimators": 200,
     "max_depth": 5,
@@ -120,6 +124,8 @@ def log_and_register(
             signature=infer_signature(sample, result.pipeline.predict(sample)),
             input_example=sample.head(3),
             registered_model_name=model_name,
+            serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_SKOPS,
+            skops_trusted_types=SKOPS_TRUSTED_TYPES,
         )
     version = info.registered_model_version
     if version is None:  # pragma: no cover - registration is requested above

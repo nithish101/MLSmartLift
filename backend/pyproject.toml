@@ -28,6 +28,9 @@ dev = [
     "httpx>=0.27",
     "testcontainers[postgres,redis]>=4.7",
 ]
+loadtest = [
+    "locust>=2.29",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -58,4 +61,4 @@ exclude_lines = [
 
 [tool.uv]
 # Resolve only releases published before this date, for reproducible locks.
-exclude-newer = "2026-09-06T00:00:00Z"
+exclude-newer = "2026-09-19T00:00:00Z"
