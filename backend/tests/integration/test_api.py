@@ -185,12 +185,14 @@ class TestAnalytics:
 
 
 def test_service_degrades_without_model(database_url, mlflow_uri, redis_url, redis_client):
-    app = create_app(Settings(
+    app = create_app(
+        Settings(
             database_url=database_url,
             redis_url=redis_url,
             mlflow_tracking_uri=mlflow_uri,
             model_name="no-such-model",
-        ))
+        )
+    )
     with TestClient(app) as c:
         assert c.get("/health").json()["status"] == "degraded"
         assert c.get("/version").json()["model_version"] is None

@@ -35,9 +35,7 @@ class InferenceLogger:
         self._thread: threading.Thread | None = None
         self._flush_lock = threading.Lock()
 
-    def record(
-        self, features: ModelInput, model_version: int, predicted: float, cached: bool, source: str
-    ) -> None:
+    def record(self, features: ModelInput, model_version: int, predicted: float, cached: bool, source: str) -> None:
         row = {
             **features.as_row(),
             "created_at": datetime.now(UTC),

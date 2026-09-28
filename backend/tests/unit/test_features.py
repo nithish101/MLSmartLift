@@ -40,7 +40,7 @@ class TestModelInput:
         assert ModelInput(**{**VALID, "rir": -1}).rir == 0
 
     @pytest.mark.parametrize(
-        "field,value",
+        ("field", "value"),
         [
             ("exercise", "curl"),
             ("weight", 0),

@@ -51,7 +51,7 @@ def compute_reference(df: pd.DataFrame, columns: Sequence[str] = FEATURE_COLUMNS
             spec: dict[str, Any] = {"kind": "categorical", "categories": values}
         else:
             qs = np.quantile(series.astype(float), np.linspace(0, 1, NUM_QUANTILE_BINS + 1)[1:-1])
-            spec = {"kind": "numeric", "edges": sorted(set(float(q) for q in qs))}
+            spec = {"kind": "numeric", "edges": sorted({float(q) for q in qs})}
         spec["proportions"] = bin_proportions(series.tolist(), spec)
         features[col] = spec
     return {"version": 1, "n_samples": len(df), "features": features}

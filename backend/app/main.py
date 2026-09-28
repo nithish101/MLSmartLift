@@ -20,9 +20,9 @@ from sqlalchemy.orm import Session
 from app import repository
 from app.cache import Cache
 from app.config import Settings, get_settings
-from app.db import Prediction, Workout, WorkoutSet, init_db, make_engine, make_session_factory
-from app.features import Exercise, ModelInput, calculate_volume_score
+from app.db import Prediction, Workout, WorkoutSet, make_engine, make_session_factory
 from app.drift import latest_results
+from app.features import Exercise, ModelInput, calculate_volume_score
 from app.inference import Inference
 from app.inference_log import InferenceLogger
 from app.ml import predictor
@@ -58,7 +58,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = make_engine(settings.database_url, settings.db_pool_size, settings.db_max_overflow)
-        init_db(engine)
         model_service = ModelService(settings.mlflow_tracking_uri, settings.model_name, settings.model_stage)
         await asyncio.to_thread(model_service.safe_refresh)
         app.state.engine = engine
@@ -135,7 +134,7 @@ def _serialize_workout(w: Workout) -> WorkoutResponse:
         exercise=w.exercise,
         bodyweight=w.bodyweight,
         sets=[SetResponse(set_number=s.set_number, weight=s.weight, reps=s.reps, rir=s.rir) for s in w.sets],
-        recovery=RecoveryEstimate(**predictor.estimate_recovery_time(rirs, w.exercise)),  # type: ignore[arg-type]
+        recovery=RecoveryEstimate(**predictor.estimate_recovery_time(rirs, w.exercise)),
         created_at=w.created_at.isoformat(),
     )
 
@@ -267,7 +266,7 @@ def register_routes(app: FastAPI) -> None:
             rec = predictor.recommend_next_session(inference.pinned_model(), exercise, bodyweight, context)
         except ModelUnavailableError as exc:
             raise _model_unavailable() from exc
-        return Recommendation(**rec)  # type: ignore[arg-type]
+        return Recommendation(**rec)
 
     @app.get("/progress/{exercise}", response_model=list[ProgressPoint])
     def get_progress(exercise: Exercise, db: DB) -> list[ProgressPoint]:

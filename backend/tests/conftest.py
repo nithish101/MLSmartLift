@@ -20,8 +20,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.config import Settings
-from app.db import init_db, make_engine
+from app.db import make_engine
 from app.main import create_app
+from app.migrate import upgrade
 from app.ml.generate_data import generate_dataset
 from app.ml.train import log_and_register, train
 from app.registry import ModelRef, promote
@@ -42,16 +43,18 @@ def trained(training_frame):
     return train(training_frame, params=FAST_PARAMS)
 
 
-
 @pytest.fixture(scope="session")
 def database_url() -> Iterator[str]:
     if url := os.environ.get("TEST_DATABASE_URL"):
+        upgrade(url)
         yield url
         return
     from testcontainers.community.postgres import PostgresContainer
 
     with PostgresContainer("postgres:16-alpine", driver="psycopg") as pg:
-        yield pg.get_connection_url()
+        url = pg.get_connection_url()
+        upgrade(url)  # the schema comes from the Alembic migrations, as in production
+        yield url
 
 
 @pytest.fixture(scope="session")
@@ -137,7 +140,6 @@ def settings(
 
 def truncate_all(database_url: str) -> None:
     engine = make_engine(database_url)
-    init_db(engine)
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"))
     engine.dispose()

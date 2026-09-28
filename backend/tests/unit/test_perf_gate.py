@@ -5,9 +5,28 @@ import pytest
 from loadtest.check_results import Summary, Thresholds, evaluate, main, read_aggregated
 
 HEADER = [
-    "Type", "Name", "Request Count", "Failure Count", "Median Response Time", "Average Response Time",
-    "Min Response Time", "Max Response Time", "Average Content Size", "Requests/s", "Failures/s",
-    "50%", "66%", "75%", "80%", "90%", "95%", "98%", "99%", "99.9%", "99.99%", "100%",
+    "Type",
+    "Name",
+    "Request Count",
+    "Failure Count",
+    "Median Response Time",
+    "Average Response Time",
+    "Min Response Time",
+    "Max Response Time",
+    "Average Content Size",
+    "Requests/s",
+    "Failures/s",
+    "50%",
+    "66%",
+    "75%",
+    "80%",
+    "90%",
+    "95%",
+    "98%",
+    "99%",
+    "99.9%",
+    "99.99%",
+    "100%",
 ]
 
 
@@ -26,7 +45,10 @@ T = Thresholds(target_rps=50, max_p99_ms=250, max_error_rate=0.001, min_rps_rati
 
 
 def checks(**kw):
-    return {c.name: c.passed for c in evaluate(Summary(**{"requests": 6000, "failures": 0, "p99_ms": 100, "rps": 50, **kw}), T)}
+    return {
+        c.name: c.passed
+        for c in evaluate(Summary(**{"requests": 6000, "failures": 0, "p99_ms": 100, "rps": 50, **kw}), T)
+    }
 
 
 def test_all_within_limits_passes():
@@ -34,7 +56,7 @@ def test_all_within_limits_passes():
 
 
 @pytest.mark.parametrize(
-    "kw,failing",
+    ("kw", "failing"),
     [
         ({"p99_ms": 251}, "p99 latency"),
         ({"failures": 7}, "error rate"),  # 7/6000 = 0.117%

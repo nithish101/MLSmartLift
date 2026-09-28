@@ -50,7 +50,7 @@ def generate_lifter_progression(
         session_weight = max(round(current_weight / 5) * 5, 45)
 
         strength_ratio = session_weight / max_w
-        base_reps = max(1, int(round(12 - 10 * strength_ratio)))
+        base_reps = max(1, round(12 - 10 * strength_ratio))
         fatigue_penalty = int(session_fatigue * 0.3)
         reps = int(np.clip(base_reps - fatigue_penalty + rng.integers(-1, 2), 1, 15))
 
@@ -65,20 +65,22 @@ def generate_lifter_progression(
         recovery_hours = base_recovery + (num_sets * intensity_factor * 4) + rng.normal(0, 3)
         recovery_hours = max(24, min(72, recovery_hours))
 
-        records.append({
-            "lifter_id": lifter_id,
-            "session": session,
-            "exercise": exercise,
-            "weight": float(session_weight),
-            "reps": reps,
-            "rir": rir,
-            "num_sets": num_sets,
-            "bodyweight": round(float(bw), 1),
-            "frequency": frequency,
-            "volume_score": int(np.clip(volume_score, 0, 100)),
-            "progression_trend": round(float(trend), 3),
-            "recovery_hours": round(float(recovery_hours), 1),
-        })
+        records.append(
+            {
+                "lifter_id": lifter_id,
+                "session": session,
+                "exercise": exercise,
+                "weight": float(session_weight),
+                "reps": reps,
+                "rir": rir,
+                "num_sets": num_sets,
+                "bodyweight": round(float(bw), 1),
+                "frequency": frequency,
+                "volume_score": int(np.clip(volume_score, 0, 100)),
+                "progression_trend": round(float(trend), 3),
+                "recovery_hours": round(float(recovery_hours), 1),
+            }
+        )
 
         if reps >= 5:
             current_weight = min(current_weight + progression_rate * rng.uniform(0.5, 1.2), max_w)

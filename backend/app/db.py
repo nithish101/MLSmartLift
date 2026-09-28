@@ -1,4 +1,8 @@
-"""SQLAlchemy engine, session factory and ORM tables (PostgreSQL)."""
+"""SQLAlchemy engine, session factory and ORM tables (PostgreSQL).
+
+The schema is owned by Alembic (app/migrations); change a model here, then run
+`alembic revision --autogenerate`.
+"""
 
 from __future__ import annotations
 
@@ -19,9 +23,7 @@ class Workout(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exercise: Mapped[str] = mapped_column(String(32), nullable=False)
     bodyweight: Mapped[float] = mapped_column(Float, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     sets: Mapped[list[WorkoutSet]] = relationship(
         back_populates="workout",
@@ -37,9 +39,7 @@ class WorkoutSet(Base):
     __tablename__ = "sets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    workout_id: Mapped[int] = mapped_column(
-        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    workout_id: Mapped[int] = mapped_column(ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True)
     set_number: Mapped[int] = mapped_column(Integer, nullable=False)
     weight: Mapped[float] = mapped_column(Float, nullable=False)
     reps: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -54,16 +54,12 @@ class Prediction(Base):
     __tablename__ = "predictions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    workout_id: Mapped[int] = mapped_column(
-        ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    workout_id: Mapped[int] = mapped_column(ForeignKey("workouts.id", ondelete="CASCADE"), nullable=False, index=True)
     exercise: Mapped[str] = mapped_column(String(32), nullable=False)
     predicted_reps: Mapped[int] = mapped_column(Integer, nullable=False)
     actual_reps: Mapped[int] = mapped_column(Integer, nullable=False)
     weight: Mapped[float] = mapped_column(Float, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (Index("ix_predictions_exercise_created_at", "exercise", "created_at"),)
 
@@ -114,8 +110,3 @@ def make_engine(url: str, pool_size: int = 10, max_overflow: int = 20) -> Engine
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
-
-
-def init_db(engine: Engine) -> None:
-    """Create any missing tables."""
-    Base.metadata.create_all(engine)

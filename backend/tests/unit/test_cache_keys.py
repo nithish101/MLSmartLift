@@ -1,9 +1,8 @@
 import threading
 
 from app.cache import CacheStats, feature_hash, features_key, prediction_key
-from app.features import ModelInput
+from app.features import ModelInput, TrainingContext
 from app.inference import HistoryFeatures
-from app.features import TrainingContext
 
 
 def test_feature_hash_ignores_key_order():

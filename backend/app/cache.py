@@ -112,7 +112,7 @@ class Cache:
             logger.warning("cache delete failed: %s", exc)
 
     def ttl(self, key: str) -> int:
-        return int(self._redis.ttl(key))  # type: ignore[arg-type]
+        return int(self._redis.ttl(key))
 
     def close(self) -> None:
         self._redis.close()

@@ -45,6 +45,17 @@ services:
       timeout: 3s
       retries: 30
 
+  # One-shot: applies Alembic migrations before anything touches the database.
+  migrate:
+    build: ./backend
+    command: ["python", "-m", "app.migrate"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-smartlift}:${POSTGRES_PASSWORD:-smartlift}@postgres:5432/${POSTGRES_DB:-smartlift}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   # One-shot: registers and promotes a first model if nothing is in Production yet.
   trainer:
     build: ./backend
@@ -78,6 +89,8 @@ services:
       mlflow:
         condition: service_healthy
       trainer:
+        condition: service_completed_successfully
+      migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

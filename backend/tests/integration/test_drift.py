@@ -11,7 +11,7 @@ import pytest
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, insert, select, text
 
-from app.db import DriftResult, InferenceLog, init_db, make_engine, make_session_factory
+from app.db import DriftResult, InferenceLog, make_engine, make_session_factory
 from app.drift import load_reference, run_drift_check
 from app.drift_worker import JOB_ID, check_once, schedule
 from app.features import FEATURE_COLUMNS
@@ -26,7 +26,6 @@ NOW = datetime(2026, 9, 1, 12, tzinfo=UTC)
 @pytest.fixture
 def session_factory(database_url):
     engine = make_engine(database_url)
-    init_db(engine)
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE inference_log, drift_results RESTART IDENTITY"))
     yield make_session_factory(engine)
@@ -53,7 +52,7 @@ def insert_live(session_factory, frame, model_version, when=NOW):
 
 
 def check(session_factory, production_model, **overrides):
-    kwargs = dict(window=timedelta(hours=1), min_samples=100, max_samples=10_000, threshold=0.2, now=NOW)
+    kwargs = {"window": timedelta(hours=1), "min_samples": 100, "max_samples": 10_000, "threshold": 0.2, "now": NOW}
     kwargs.update(overrides)
     return run_drift_check(session_factory, production_model.version, production_model.run_id, **kwargs)
 
@@ -69,7 +68,9 @@ def test_served_predictions_are_logged(client, settings):
     body = {"exercise": "squat", "weight": 225, "rir": 2, "bodyweight": 180}
     client.post("/predict", json=body)
     client.post("/predict", json=body)  # cache hit is still a served prediction
-    client.post("/workouts", json={"exercise": "squat", "bodyweight": 180, "sets": [{"weight": 225, "reps": 5, "rir": 2}]})
+    client.post(
+        "/workouts", json={"exercise": "squat", "bodyweight": 180, "sets": [{"weight": 225, "reps": 5, "rir": 2}]}
+    )
     client.get("/recommendation/squat")
     client.app.state.inference.inference_log.flush()
 
@@ -80,7 +81,8 @@ def test_served_predictions_are_logged(client, settings):
     assert [r.cached for r in rows[:2]] == [False, True]
     assert {r.source for r in rows} == {"predict", "workout", "recommendation"}
     assert all(r.model_version == 1 and r.exercise == "squat" for r in rows)
-    assert rows[0].weight == 225 and rows[0].num_sets == 4
+    assert rows[0].weight == 225
+    assert rows[0].num_sets == 4
 
 
 def test_stable_traffic_reports_ok(session_factory, production_model, training_frame):
@@ -113,7 +115,9 @@ def test_shifted_traffic_is_flagged_persisted_logged_and_exported(session_factor
 
     with session_factory() as db:
         row = db.scalar(select(DriftResult).where(DriftResult.feature == "bodyweight"))
-    assert row.drifted and row.psi == report.psi["bodyweight"] and row.sample_size == 1500
+    assert row.drifted
+    assert row.psi == report.psi["bodyweight"]
+    assert row.sample_size == 1500
     assert row.model_version == production_model.version
     assert row.window_end - row.window_start == timedelta(hours=1)
 
@@ -126,8 +130,15 @@ def test_shifted_traffic_is_flagged_persisted_logged_and_exported(session_factor
 
 
 def test_window_excludes_old_rows_and_other_versions(session_factory, production_model, training_frame):
-    insert_live(session_factory, training_frame.sample(500, random_state=5, replace=True), production_model.version, NOW - timedelta(days=2))
-    insert_live(session_factory, training_frame.sample(500, random_state=6, replace=True), production_model.version + 99)
+    insert_live(
+        session_factory,
+        training_frame.sample(500, random_state=5, replace=True),
+        production_model.version,
+        NOW - timedelta(days=2),
+    )
+    insert_live(
+        session_factory, training_frame.sample(500, random_state=6, replace=True), production_model.version + 99
+    )
     report = check(session_factory, production_model)
     assert report.status == "insufficient_data"
     assert report.sample_size == 0
@@ -141,13 +152,18 @@ def test_insufficient_samples_writes_nothing(session_factory, production_model, 
 
 
 def test_no_model_and_no_reference(session_factory, mlflow_uri):
-    assert run_drift_check(session_factory, None, None, window=timedelta(hours=1), min_samples=1,
-                           max_samples=10, threshold=0.2).status == "no_model"
+    assert (
+        run_drift_check(
+            session_factory, None, None, window=timedelta(hours=1), min_samples=1, max_samples=10, threshold=0.2
+        ).status
+        == "no_model"
+    )
     mlflow.set_tracking_uri(mlflow_uri)
     with mlflow.start_run() as run:  # a run that never logged a reference
         pass
-    report = run_drift_check(session_factory, 1, run.info.run_id, window=timedelta(hours=1), min_samples=1,
-                             max_samples=10, threshold=0.2)
+    report = run_drift_check(
+        session_factory, 1, run.info.run_id, window=timedelta(hours=1), min_samples=1, max_samples=10, threshold=0.2
+    )
     assert report.status == "no_reference"
 
 
@@ -166,14 +182,20 @@ def test_drift_endpoint_returns_latest_check(client, settings, production_model,
 
 
 def test_scheduler_runs_check_against_production(settings, session_factory, production_model, training_frame):
-    insert_live(session_factory, training_frame.sample(300, random_state=9, replace=True), production_model.version, datetime.now(UTC))
+    insert_live(
+        session_factory,
+        training_frame.sample(300, random_state=9, replace=True),
+        production_model.version,
+        datetime.now(UTC),
+    )
     settings.drift_min_samples = 100
     settings.drift_interval_seconds = 3600
 
     from mlflow import MlflowClient
 
     report = check_once(settings, session_factory, MlflowClient(tracking_uri=settings.mlflow_tracking_uri))
-    assert report.status == "ok" and report.model_version == production_model.version
+    assert report.status == "ok"
+    assert report.model_version == production_model.version
 
     scheduler = BackgroundScheduler(timezone="UTC")
     schedule(scheduler, settings, session_factory)

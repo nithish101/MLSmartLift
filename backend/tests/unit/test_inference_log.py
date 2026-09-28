@@ -35,7 +35,9 @@ def test_flush_writes_buffered_rows_in_batches():
         log.record(FEATURES, 3, 6.5, False, "predict")
     assert log.flush() == 1200
     assert len(sink) == 1200
-    assert sink[0]["model_version"] == 3 and sink[0]["weight"] == 225 and sink[0]["source"] == "predict"
+    assert sink[0]["model_version"] == 3
+    assert sink[0]["weight"] == 225
+    assert sink[0]["source"] == "predict"
     assert log.flush() == 0
 
 

@@ -19,11 +19,7 @@ def recent_workouts(db: Session, exercise: str | None, limit: int) -> list[Worko
 
 def all_workouts(db: Session, exercise: str) -> list[Workout]:
     """All workouts for an exercise, oldest first."""
-    stmt = (
-        select(Workout)
-        .where(Workout.exercise == exercise)
-        .order_by(Workout.created_at.asc(), Workout.id.asc())
-    )
+    stmt = select(Workout).where(Workout.exercise == exercise).order_by(Workout.created_at.asc(), Workout.id.asc())
     return list(db.scalars(stmt))
 
 

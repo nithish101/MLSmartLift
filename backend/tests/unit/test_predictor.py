@@ -24,7 +24,7 @@ def ctx(weight: float) -> TrainingContext:
 
 
 @pytest.mark.parametrize(
-    "reps,expected",
+    ("reps", "expected"),
     [(1, "decrease"), (4, "decrease"), (5, "maintain"), (9, "maintain"), (10, "increase")],
 )
 def test_outcome_buckets(reps, expected):

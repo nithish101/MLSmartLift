@@ -25,7 +25,7 @@ class TestPsi:
         assert math.isfinite(psi([0.5, 0.5, 0.0], [0.0, 0.5, 0.5]))
 
     def test_bin_count_mismatch(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="same number of bins"):
             psi([1.0], [0.5, 0.5])
 
 

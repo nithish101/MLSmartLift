@@ -56,7 +56,7 @@ def recommend_next_session(
 
     def predict_at(weight: float) -> int:
         features = ModelInput(
-            exercise=exercise,  # type: ignore[arg-type]
+            exercise=exercise,
             weight=weight,
             rir=TARGET_RIR,
             bodyweight=bodyweight,
@@ -128,32 +128,42 @@ def generate_alerts(
     if len(weights) >= 3:
         trend = weights[-1] - weights[0]
         if trend < 0:
-            alerts.append({
-                "type": "warning",
-                "message": "Progress slower than expected. Consider adjusting volume or recovery.",
-            })
+            alerts.append(
+                {
+                    "type": "warning",
+                    "message": "Progress slower than expected. Consider adjusting volume or recovery.",
+                }
+            )
         elif trend == 0 and len(weights) >= 4:
-            alerts.append({
-                "type": "info",
-                "message": "Weight has plateaued. Try adding sets or increasing frequency.",
-            })
+            alerts.append(
+                {
+                    "type": "info",
+                    "message": "Weight has plateaued. Try adding sets or increasing frequency.",
+                }
+            )
 
     if volume_score > 80:
-        alerts.append({
-            "type": "warning",
-            "message": "High training stress. Make sure you're recovering fully between sessions.",
-        })
+        alerts.append(
+            {
+                "type": "warning",
+                "message": "High training stress. Make sure you're recovering fully between sessions.",
+            }
+        )
     elif volume_score < 25:
-        alerts.append({
-            "type": "info",
-            "message": "Training volume may be too low. Consider adding sets or sessions.",
-        })
+        alerts.append(
+            {
+                "type": "info",
+                "message": "Training volume may be too low. Consider adding sets or sessions.",
+            }
+        )
 
     rirs = list(recent_rirs[-3:])
     if rirs and sum(rirs) / len(rirs) > 3:
-        alerts.append({
-            "type": "tip",
-            "message": "Average RIR is high. You could increase intensity for better stimulus.",
-        })
+        alerts.append(
+            {
+                "type": "tip",
+                "message": "Average RIR is high. You could increase intensity for better stimulus.",
+            }
+        )
 
     return alerts

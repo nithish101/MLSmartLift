@@ -128,6 +128,17 @@ uv run pytest
 
 Unit tests cover feature computation, input validation and the recommendation logic. Integration tests start throwaway PostgreSQL, Redis and MLflow containers with [testcontainers](https://testcontainers.com/) (Docker must be running) and hit the real API, including `POST /predict` against a model loaded from the registry, a promotion that the running app picks up without a restart, and the cold → warm cache path. Coverage is reported on `app/` and the run fails below 70%. To reuse running services instead of containers, set `TEST_DATABASE_URL` / `TEST_REDIS_URL` / `TEST_MLFLOW_URI`.
 
+## Database migrations
+
+The schema is owned by Alembic (`backend/app/migrations`). In compose, the one-shot `migrate` service runs `python -m app.migrate` (upgrade to head) before the API, trainer and drift worker start. After changing a model in `app/db.py`:
+
+```bash
+cd backend
+uv run alembic revision --autogenerate -m "describe the change"
+uv run alembic upgrade head
+uv run alembic check   # fails if models and migrations disagree
+```
+
 ## Load testing
 
 ```bash
@@ -136,10 +147,25 @@ backend/loadtest/run.sh   # starts the stack, seeds it, runs Locust, applies the
 
 Locust runs in its own container on the compose network and drives `POST /predict` (90%) and `GET /recommendation/{exercise}` (10%) at `TARGET_RPS` (default 50) using feature vectors from the same synthetic generator as training. The first `WARMUP_SECONDS` (30) ramp up and are then discarded; the following `TEST_SECONDS` (120) are measured. `backend/loadtest/check_results.py` then fails (exit 1) if p99 latency exceeds `PERF_MAX_P99_MS` (250), the error rate exceeds 0.1%, or achieved throughput is below 90% of the target. CSV results land in `backend/loadtest/results/`.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`:
+
+| Stage | Enforces |
+|---|---|
+| Lint (ruff) | `ruff check` + `ruff format --check` |
+| Type check (mypy) | `mypy --strict` over `app/` and `loadtest/` |
+| Tests + coverage (pytest) | unit + integration tests (Postgres/Redis/MLflow via testcontainers), ≥70% coverage |
+| Migrations (alembic) | upgrade a fresh DB to head, `alembic check`, downgrade to base and back, single head |
+| Docker build | multi-stage runtime image builds, runs as a non-root user, ships no build tooling |
+| Load test gate (locust) | `backend/loadtest/run.sh` against the containerized stack — p99, error rate, throughput |
+
+Each stage runs only after the previous one passes (build waits on lint/types/tests/migrations, the gate waits on build). `main` is protected: all six checks must pass before a pull request can merge.
+
 ## Project structure
 
 ```
-docker-compose.yml   — postgres, redis, mlflow, trainer (bootstrap), api, drift-worker, prometheus, grafana, frontend
+docker-compose.yml   — postgres, redis, mlflow, migrate, trainer (bootstrap), api, drift-worker, prometheus, grafana, frontend
                        (+ loadtest, behind the "loadtest" profile)
 observability/       — Prometheus scrape config, Grafana provisioning + dashboard JSON
 backend/
@@ -156,6 +182,8 @@ backend/
     inference_log.py — buffered writer for served-prediction features
     drift.py         — training reference, PSI, drift check
     drift_worker.py  — APScheduler process running the drift check
+    migrate.py       — applies Alembic migrations
+    migrations/      — Alembic environment and versions
     model_service.py — loads the Production model from MLflow, hot-swaps on promotion
     registry.py      — stage lookup/promotion helpers + `python -m app.registry` CLI
     seed.py          — populates the DB with demo workouts

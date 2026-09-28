@@ -25,13 +25,13 @@ import mlflow
 import mlflow.sklearn
 import numpy as np
 import pandas as pd
+from mlflow import MlflowClient
+from mlflow.models import infer_signature
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from mlflow import MlflowClient
-from mlflow.models import infer_signature
 from sklearn.preprocessing import OrdinalEncoder
 
 from app.drift import REFERENCE_ARTIFACT, compute_reference
@@ -111,7 +111,7 @@ def log_and_register(
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(experiment)
     # Numeric features are declared as doubles so the signature tolerates either ints or floats.
-    sample = df[FEATURE_COLUMNS].head(20).astype({c: "float64" for c in NUMERIC_FEATURES})
+    sample = df[FEATURE_COLUMNS].head(20).astype(dict.fromkeys(NUMERIC_FEATURES, "float64"))
     with mlflow.start_run() as run:
         mlflow.log_params({**result.params, "n_samples": len(df), **(extra_params or {})})
         mlflow.log_metrics(result.metrics)
@@ -156,7 +156,9 @@ def run_training(
 
     df = pd.read_csv(data) if data else generate_dataset(num_lifters=num_lifters, seed=seed)
     result = train(df, params=params)
-    logger.info("trained: MAE %.3f RMSE %.3f R2 %.4f", result.metrics["mae"], result.metrics["rmse"], result.metrics["r2"])
+    logger.info(
+        "trained: MAE %.3f RMSE %.3f R2 %.4f", result.metrics["mae"], result.metrics["rmse"], result.metrics["r2"]
+    )
 
     ref = log_and_register(
         result,

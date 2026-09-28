@@ -21,7 +21,7 @@ from prometheus_client import start_http_server
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings, get_settings
-from app.db import init_db, make_engine, make_session_factory
+from app.db import make_engine, make_session_factory
 from app.drift import DriftReport, run_drift_check
 from app.observability import configure_logging
 from app.registry import latest_in_stage
@@ -68,7 +68,6 @@ def main() -> None:  # pragma: no cover - process entrypoint
     settings = get_settings()
     configure_logging(settings.log_level)
     engine = make_engine(settings.database_url, pool_size=2, max_overflow=0)
-    init_db(engine)
     start_http_server(settings.drift_metrics_port)
     scheduler = BlockingScheduler(timezone="UTC")
     schedule(scheduler, settings, make_session_factory(engine))

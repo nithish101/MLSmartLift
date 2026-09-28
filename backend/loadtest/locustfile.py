@@ -33,7 +33,7 @@ TEST_SECONDS = int(os.environ.get("TEST_SECONDS", "120"))
 
 # A fixed pool of realistic feature vectors (seed differs from training data).
 _POOL: list[dict[str, Any]] = [
-    {k: (v.item() if hasattr(v, "item") else v) for k, v in row.items()}
+    {str(k): (v.item() if hasattr(v, "item") else v) for k, v in row.items()}
     for row in generate_dataset(num_lifters=20, seed=2026)[FEATURE_COLUMNS].to_dict("records")
 ]
 EXERCISES = ("bench_press", "squat", "deadlift")
@@ -69,7 +69,7 @@ class WarmupThenSteady(LoadTestShape):
         if t < WARMUP_SECONDS:
             users = max(1, round(TARGET_RPS * min(1.0, t / max(WARMUP_SECONDS * 0.5, 1))))
             return users, max(1.0, TARGET_RPS / max(WARMUP_SECONDS * 0.5, 1))
-        if not self._reset_done:
+        if not self._reset_done and self.runner is not None:
             self.runner.stats.reset_all()
             self._reset_done = True
             print(f"warmup complete after {WARMUP_SECONDS}s; statistics reset, measuring for {TEST_SECONDS}s")

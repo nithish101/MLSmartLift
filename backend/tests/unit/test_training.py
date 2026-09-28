@@ -37,10 +37,12 @@ def test_pipeline_accepts_feature_frame(trained):
 
 def test_heavier_load_predicts_fewer_reps(trained):
     light, heavy = trained.pipeline.predict(
-        to_frame([
-            ModelInput(exercise="squat", weight=135, rir=2, bodyweight=180),
-            ModelInput(exercise="squat", weight=365, rir=2, bodyweight=180),
-        ])
+        to_frame(
+            [
+                ModelInput(exercise="squat", weight=135, rir=2, bodyweight=180),
+                ModelInput(exercise="squat", weight=365, rir=2, bodyweight=180),
+            ]
+        )
     )
     assert heavy < light
 

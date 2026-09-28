@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: "1"
+  MLFLOW_DISABLE_AGENT_HINT: "1"
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync
+      - run: uv run ruff check --output-format=github .
+      - run: uv run ruff format --check .
+
+  typecheck:
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync
+      - run: uv run mypy
+
+  test:
+    name: Tests + coverage (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync
+      # Integration tests start Postgres, Redis and MLflow with testcontainers (Docker is
+      # preinstalled on the runner). Fails below 70% coverage (see pyproject.toml).
+      - run: uv run pytest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: backend/coverage.xml
+
+  migrations:
+    name: Migrations (alembic)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smartlift
+          POSTGRES_PASSWORD: smartlift
+          POSTGRES_DB: smartlift
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smartlift"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://smartlift:smartlift@localhost:5432/smartlift
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync
+      - name: Upgrade a fresh database to head
+        run: uv run alembic upgrade head
+      - name: Models and migrations agree
+        run: uv run alembic check
+      - name: Downgrade to base and upgrade again
+        run: uv run alembic downgrade base && uv run alembic upgrade head
+      - name: Single head
+        run: test "$(uv run alembic heads | wc -l)" -eq 1
+
+  build:
+    name: Docker build
+    needs: [lint, typecheck, test, migrations]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          target: runtime
+          tags: smartlift-api:ci
+          load: true
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          tags: smartlift-frontend:ci
+          load: true
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+      - name: Runtime image is slim and unprivileged
+        run: |
+          docker image ls smartlift-api:ci --format '{{.Repository}}:{{.Tag}} {{.Size}}' | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$(docker run --rm smartlift-api:ci id -u)" = "10001"
+          ! docker run --rm smartlift-api:ci sh -c 'command -v uv'
+          docker run --rm smartlift-api:ci python -c "import app.main"
+
+  perf-gate:
+    name: Load test gate (locust)
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Load test the containerized app (fails on p99 / error-rate / throughput breach)
+        env:
+          KEEP_STACK: "1"  # leave containers up so the logs step below can read them
+        run: backend/loadtest/run.sh
+      - name: Service logs
+        if: failure()
+        run: docker compose logs --no-color api trainer migrate | tail -200
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: locust-results
+          path: backend/loadtest/results/

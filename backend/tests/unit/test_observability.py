@@ -59,7 +59,7 @@ def test_non_json_extras_are_stringified():
 
 
 @pytest.mark.parametrize(
-    "header,expected",
+    ("header", "expected"),
     [(b"client-id_1.2", "client-id_1.2"), (b"bad id with spaces", None), (b"x" * 200, None)],
 )
 def test_incoming_request_id_validation(header, expected):

@@ -47,7 +47,7 @@ def test_promotion_archives_previous_and_sets_alias(mlflow_uri, client_mlflow, m
 
 
 def test_promote_rejects_unknown_stage(client_mlflow):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="stage must be one of"):
         registry.promote(client_mlflow, "x", 1, "Prod")
 
 
@@ -99,9 +99,10 @@ def test_refresh_failure_keeps_serving(mlflow_uri, model_name, trained, training
 
 
 def test_training_cli_registers_and_bootstrap_is_idempotent(mlflow_uri, client_mlflow, model_name):
-    kwargs = dict(tracking_uri=mlflow_uri, experiment="smartlift-tests", model_name=model_name, num_lifters=4)
+    kwargs = {"tracking_uri": mlflow_uri, "experiment": "smartlift-tests", "model_name": model_name, "num_lifters": 4}
     ref = run_training(**kwargs, bootstrap=True, params=None)
-    assert ref is not None and ref.stage == "Production"
+    assert ref is not None
+    assert ref.stage == "Production"
 
     run = client_mlflow.get_run(ref.run_id)
     assert {"mae", "rmse", "r2"} <= set(run.data.metrics)
@@ -109,7 +110,8 @@ def test_training_cli_registers_and_bootstrap_is_idempotent(mlflow_uri, client_m
 
     assert run_training(**kwargs, bootstrap=True) is None  # already in Production
     staged = run_training(**kwargs, stage="Staging")
-    assert staged.version == ref.version + 1 and staged.stage == "Staging"
+    assert staged.version == ref.version + 1
+    assert staged.stage == "Staging"
 
 
 def test_registry_cli(mlflow_uri, model_name, trained, training_frame, monkeypatch, capsys):

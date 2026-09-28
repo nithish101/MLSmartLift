@@ -43,7 +43,7 @@ def _stages_api() -> Iterator[None]:
 
 
 def _is_missing(exc: MlflowException) -> bool:
-    return exc.error_code == ErrorCode.Name(RESOURCE_DOES_NOT_EXIST)
+    return bool(exc.error_code == ErrorCode.Name(RESOURCE_DOES_NOT_EXIST))
 
 
 def latest_in_stage(client: MlflowClient, name: str, stage: str) -> ModelRef | None:
@@ -75,7 +75,10 @@ def promote(client: MlflowClient, name: str, version: int, stage: str, archive_e
 def list_versions(client: MlflowClient, name: str) -> list[ModelRef]:
     versions = client.search_model_versions(f"name = '{name}'")
     return sorted(
-        (ModelRef(name=name, version=int(v.version), stage=v.current_stage, run_id=v.run_id) for v in versions),
+        (
+            ModelRef(name=name, version=int(v.version), stage=v.current_stage or "None", run_id=v.run_id)
+            for v in versions
+        ),
         key=lambda r: r.version,
     )
 
