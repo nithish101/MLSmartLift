@@ -1,14 +1,14 @@
 import { useState } from 'react';
 
 const FEATURES = [
-    { name: 'Weight Lifted', pct: 35.5, desc: 'The primary load used in the exercise' },
-    { name: 'Bodyweight', pct: 31.3, desc: 'User bodyweight influences relative strength' },
-    { name: 'Progression', pct: 13.0, desc: 'Recent trend direction (improving / stalling)' },
-    { name: 'Exercise Type', pct: 9.9, desc: 'Bench press, squat, or deadlift' },
-    { name: 'Volume Score', pct: 6.2, desc: 'Weekly training stress accumulation' },
-    { name: 'RIR', pct: 1.8, desc: 'Reps in reserve — proximity to failure' },
-    { name: 'Sets', pct: 1.3, desc: 'Number of working sets per session' },
-    { name: 'Frequency', pct: 1.0, desc: 'Training sessions per week' },
+    { name: 'Weight Lifted', pct: 35.7, desc: 'The primary load used in the exercise' },
+    { name: 'Bodyweight', pct: 32.7, desc: 'User bodyweight influences relative strength' },
+    { name: 'Progression', pct: 11.8, desc: 'Recent trend direction (improving / stalling)' },
+    { name: 'Exercise Type', pct: 10.2, desc: 'Bench press, squat, or deadlift' },
+    { name: 'Volume Score', pct: 5.4, desc: 'Weekly training stress accumulation' },
+    { name: 'RIR', pct: 1.5, desc: 'Reps in reserve — proximity to failure' },
+    { name: 'Sets', pct: 1.5, desc: 'Number of working sets per session' },
+    { name: 'Frequency', pct: 1.1, desc: 'Training sessions per week' },
 ];
 
 export default function ModelExplainer({ isOpen, onClose }) {
@@ -148,7 +148,7 @@ export default function ModelExplainer({ isOpen, onClose }) {
                     <h3>Model Performance</h3>
                     <div className="stat-grid" style={{ marginTop: 8 }}>
                         <div className="stat-card">
-                            <div className="stat-value">1.12</div>
+                            <div className="stat-value">1.15</div>
                             <div className="stat-label">MAE (reps)</div>
                         </div>
                         <div className="stat-card">
