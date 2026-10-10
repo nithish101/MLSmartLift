@@ -23,6 +23,6 @@ The original backend loaded `smartlift_model.pkl` and `exercise_encoder.pkl` fro
 ## Consequences
 
 - One more service (MLflow, SQLite backend plus a proxied artifact store) in the stack, and a one-shot `trainer` service to bootstrap the first Production model.
-- MLflow 3 has deprecated registry stages in favor of aliases. We use stages because the promotion workflow is stage-based, isolate the calls in `app/registry.py`, and mirror each stage to an alias (`production`, `staging`) on promotion. Moving to aliases later means changing `latest_in_stage` to read the alias.
+- MLflow 3 has deprecated registry stages in favor of aliases. We use stages because the promotion workflow is stage-based, isolate the calls in `app/registry.py`, and mirror each stage to an alias (`production`, `staging`) on promotion, removing the alias of the stage a version leaves so aliases never disagree with stages. Moving to aliases later means changing `latest_in_stage` to read the alias.
 - If the registry is unreachable at startup the API starts degraded (`/predict` returns 503) and keeps retrying. Once a model is loaded, registry outages don't affect serving. MLflow's HTTP retries are capped so an outage can't stall startup for minutes.
 - Promotions take effect within one poll interval (30 s by default), not instantly.
