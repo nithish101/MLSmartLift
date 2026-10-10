@@ -200,6 +200,7 @@ def test_scheduler_runs_check_against_production(settings, session_factory, prod
     scheduler = BackgroundScheduler(timezone="UTC")
     schedule(scheduler, settings, session_factory)
     assert scheduler.get_job(JOB_ID).trigger.interval == timedelta(seconds=3600)
+    assert scheduler.get_job(JOB_ID).misfire_grace_time is None  # late runs still happen
     scheduler.start()
     try:
         deadline = time.monotonic() + 30
@@ -211,3 +212,22 @@ def test_scheduler_runs_check_against_production(settings, session_factory, prod
             time.sleep(0.2)
     finally:
         scheduler.shutdown(wait=True)
+
+
+def test_workout_prediction_uses_history_features(client, settings):
+    """The prediction stored for a logged workout uses the lifter's history, not defaults."""
+    for weight in (135, 140, 145):
+        sets = [{"weight": weight, "reps": 8, "rir": 2}] * 5
+        client.post("/workouts", json={"exercise": "bench_press", "bodyweight": 180, "sets": sets})
+    client.app.state.inference.inference_log.flush()
+
+    engine = make_engine(settings.database_url)
+    with make_session_factory(engine)() as db:
+        rows = db.scalars(select(InferenceLog).where(InferenceLog.source == "workout").order_by(InferenceLog.id)).all()
+    engine.dispose()
+    assert len(rows) == 3
+    first, _, last = rows
+    assert (first.num_sets, first.frequency) == (4, 3)  # no history yet: defaults
+    assert last.num_sets == 5  # average sets of the previous sessions
+    assert last.frequency == 2  # the two earlier sessions this week
+    assert last.progression_trend == pytest.approx(1.0)  # +5 lb per session

@@ -110,3 +110,16 @@ def test_writes_github_step_summary(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
     main([str(write_stats(tmp_path / "s.csv")), "--target-rps", "50"])
     assert "### Performance gate PASSED" in summary.read_text()
+
+
+def test_load_traffic_does_not_look_like_drift():
+    """The load-test pool must match the training distribution, or every load test raises drift alarms."""
+    import pandas as pd
+
+    from app.drift import compute_reference, feature_psi
+    from app.ml.generate_data import generate_dataset
+    from loadtest.traffic import build_pool
+
+    reference = compute_reference(generate_dataset(seed=0))  # what `python -m app.ml.train` trains on
+    sample = pd.DataFrame(build_pool()).sample(6000, replace=True, random_state=0)
+    assert max(feature_psi(reference, sample).values()) < 0.1

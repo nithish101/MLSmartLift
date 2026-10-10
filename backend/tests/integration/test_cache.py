@@ -50,15 +50,17 @@ def test_feature_lookup_cached_and_invalidated_on_new_workout(client, redis_clie
     sets = [{"weight": 135, "reps": 8, "rir": 2}] * 3
     client.post("/workouts", json={"exercise": "bench_press", "bodyweight": 180, "sets": sets})
 
+    before = stats(client, "features")  # logging the workout itself looked up (then invalidated) history
     cold = client.get("/recommendation/bench_press").json()
-    assert stats(client, "features") == {"hits": 0, "misses": 1, "hit_ratio": 0.0}
+    after = stats(client, "features")
+    assert (after["hits"] - before["hits"], after["misses"] - before["misses"]) == (0, 1)  # cold after invalidation
     key = features_key("bench_press")
     assert 0 < redis_client.ttl(key) <= settings.feature_cache_ttl_seconds
 
     warm = client.get("/recommendation/bench_press").json()
     assert warm == cold
     client.get("/alerts/bench_press")
-    assert stats(client, "features")["hits"] == 2
+    assert stats(client, "features")["hits"] - before["hits"] == 2
 
     heavier = [{"weight": 185, "reps": 8, "rir": 2}] * 3
     client.post("/workouts", json={"exercise": "bench_press", "bodyweight": 180, "sets": heavier})

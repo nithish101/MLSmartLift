@@ -16,8 +16,10 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 COPY app ./app
+# uv keys its cached wheel of a local project on pyproject.toml only, so force a
+# rebuild of the app itself or a warm cache would ship stale source.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --no-editable --reinstall-package smartlift --refresh-package smartlift
 
 # ---- runtime: just the interpreter and the venv, as an unprivileged user ----
 FROM python:3.12-slim AS runtime

@@ -61,6 +61,8 @@ def schedule(scheduler: BaseScheduler, settings: Settings, session_factory: sess
         next_run_time=datetime.now(UTC),  # run once at startup too
         max_instances=1,
         coalesce=True,
+        # Run late rather than skip: by default a run delayed >1s (host pause, GC, busy node) is dropped.
+        misfire_grace_time=None,
     )
 
 

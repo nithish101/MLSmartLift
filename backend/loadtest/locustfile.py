@@ -8,10 +8,9 @@ produce TARGET_RPS requests/second. Traffic ramps up over WARMUP_SECONDS; when
 the warmup ends the statistics are reset, so only the steady-state
 TEST_SECONDS that follow are measured and gated.
 
-Request bodies are feature vectors drawn from the same synthetic generator the
-model is trained on, so traffic looks like real lifters (and doesn't trip the
-drift detector). Vectors repeat across users, which exercises the cache at a
-realistic hit rate.
+Request bodies come from loadtest/traffic.py: feature vectors from the training
+data generator, distributed like the training data so traffic looks like real
+lifters and doesn't trip the drift detector.
 
 Environment: TARGET_RPS (50), WARMUP_SECONDS (30), TEST_SECONDS (120).
 """
@@ -24,19 +23,13 @@ from typing import Any
 
 from locust import HttpUser, LoadTestShape, constant_throughput, events, task
 
-from app.features import FEATURE_COLUMNS
-from app.ml.generate_data import generate_dataset
+from loadtest.traffic import build_pool
 
 TARGET_RPS = int(os.environ.get("TARGET_RPS", "50"))
 WARMUP_SECONDS = int(os.environ.get("WARMUP_SECONDS", "30"))
 TEST_SECONDS = int(os.environ.get("TEST_SECONDS", "120"))
 
-# A fixed pool of realistic feature vectors (seed differs from training data).
-_POOL: list[dict[str, Any]] = [
-    {str(k): (v.item() if hasattr(v, "item") else v) for k, v in row.items()}
-    for row in generate_dataset(num_lifters=20, seed=2026)[FEATURE_COLUMNS].to_dict("records")
-]
-EXERCISES = ("bench_press", "squat", "deadlift")
+_POOL = build_pool()
 
 
 class Lifter(HttpUser):
@@ -53,8 +46,12 @@ class Lifter(HttpUser):
 
     @task(1)
     def recommendation(self) -> None:
-        exercise = random.choice(EXERCISES)
-        self.client.get(f"/recommendation/{exercise}", name="/recommendation/{exercise}")
+        lifter = random.choice(_POOL)  # realistic bodyweight; the API's 180 lb default would skew drift
+        self.client.get(
+            f"/recommendation/{lifter['exercise']}",
+            params={"bodyweight": lifter["bodyweight"]},
+            name="/recommendation/{exercise}",
+        )
 
 
 class WarmupThenSteady(LoadTestShape):
