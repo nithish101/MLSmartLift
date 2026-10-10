@@ -54,3 +54,39 @@ def test_pipeline_needs_only_the_reviewed_skops_types(trained):
 
     untrusted = skops.io.get_untrusted_types(data=skops.io.dumps(trained.pipeline))
     assert set(untrusted) <= set(SKOPS_TRUSTED_TYPES)
+
+
+def test_fast_path_matches_pipeline_exactly(trained, training_frame):
+    from app.model_service import LoadedModel, fast_path
+    from loadtest.traffic import build_pool
+
+    fast = fast_path(trained.pipeline)
+    assert fast is not None
+    inputs = [ModelInput(**row) for row in build_pool(num_lifters=40)]
+    via_pipeline = trained.pipeline.predict(to_frame(inputs))
+    assert np.array_equal(fast(inputs), via_pipeline)  # bit-for-bit, not approximately
+    loaded = LoadedModel(ref=None, model=trained.pipeline, loaded_at=None, fast=fast)  # type: ignore[arg-type]
+    assert loaded.predict(inputs[:3]) == [float(v) for v in via_pipeline[:3]]
+
+
+def test_fast_path_declines_unfamiliar_models(trained):
+    from sklearn.dummy import DummyRegressor
+    from sklearn.pipeline import Pipeline
+
+    from app.model_service import fast_path
+
+    assert fast_path(DummyRegressor()) is None
+    assert fast_path(Pipeline([("model", DummyRegressor())])) is None
+    reordered = Pipeline([("features", trained.pipeline.named_steps["features"]), ("other", DummyRegressor())])
+    assert fast_path(reordered) is None
+
+    # A numeric step that actually transforms must not be bypassed.
+    import copy
+
+    import numpy as np
+    from sklearn.preprocessing import FunctionTransformer
+
+    altered = copy.deepcopy(trained.pipeline)
+    ct = altered.named_steps["features"]
+    ct.transformers_ = [(n, FunctionTransformer(np.log1p) if n == "numeric" else t, c) for n, t, c in ct.transformers_]
+    assert fast_path(altered) is None
