@@ -23,6 +23,17 @@ Right now it supports bench press, squat, and deadlift. The model was trained on
   <img src="frontend/screenshots/explainer.webp" width="24%" alt="Model Explainer Screenshot" />
 </div>
 
+### Operations
+
+| | |
+|---|---|
+| ![Grafana dashboard: request rate, latency percentiles, cache hit ratio, inference latency](docs/images/grafana.webp) | ![Grafana drift panels: PSI per feature against the 0.2 threshold](docs/images/grafana_drift.webp) |
+| **Grafana — SmartLift API.** Serving model version, request rate, 5xx rate, p50/p95/p99 latency per route, inference latency split by cache hit and miss. | **Feature drift.** PSI of every model feature against the Production model's training reference, with the 0.1 and 0.2 thresholds. |
+| ![MLflow model registry with four versions; version 4 holds the production alias](docs/images/mlflow_registry.webp) | ![OpenAPI docs listing the SmartLift endpoints](docs/images/api_docs.webp) |
+| **MLflow registry.** Every training run registers a version; promotion moves the `production` alias (and stage) and the API hot-swaps to it. | **API.** Interactive OpenAPI docs at `/docs`. |
+
+The screenshots come from a local `docker compose up` with demo data (`python -m app.seed`), a few promotions, and the load generator running at 25 RPS.
+
 ## Architecture
 
 ```mermaid
@@ -138,7 +149,8 @@ docker compose run --rm trainer python -m app.ml.train --stage Staging
 # Compare it with what's serving (metrics are on each run in the MLflow UI)
 docker compose exec api python -m app.registry list
 
-# Promote it; the previous Production version is archived
+# Promote it; the previous Production version is archived, and the
+# production/staging aliases are moved to match
 docker compose exec api python -m app.registry promote --version 2 --stage Production
 
 # Confirm the API switched over (within MODEL_REFRESH_SECONDS, default 30 s)

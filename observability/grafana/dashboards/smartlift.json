@@ -35,7 +35,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(smartlift_model_version)",
+          "expr": "max(smartlift_model_version{job=\"smartlift-api\"})",
           "legendFormat": "version"
         }
       ],
@@ -93,7 +93,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(smartlift_http_request_duration_seconds_count{route!=\"/metrics\"}[1m]))",
+          "expr": "sum(rate(smartlift_http_request_duration_seconds_count{job=\"smartlift-api\",route!=\"/metrics\"}[1m]))",
           "legendFormat": "req/s"
         }
       ],
@@ -137,7 +137,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(smartlift_http_request_duration_seconds_count{status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(smartlift_http_request_duration_seconds_count{route!=\"/metrics\"}[5m])), 1e-9)",
+          "expr": "(sum(rate(smartlift_http_request_duration_seconds_count{job=\"smartlift-api\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(smartlift_http_request_duration_seconds_count{job=\"smartlift-api\",route!=\"/metrics\"}[5m])), 1e-9)",
           "legendFormat": "errors"
         }
       ],
@@ -199,7 +199,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{route!=\"/metrics\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{job=\"smartlift-api\",route!=\"/metrics\"}[5m])))",
           "legendFormat": "p99"
         }
       ],
@@ -260,7 +260,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(smartlift_cache_requests_total{cache=\"prediction\",result=\"hit\"}[5m])) / clamp_min(sum(rate(smartlift_cache_requests_total{cache=\"prediction\"}[5m])), 1e-9)",
+          "expr": "sum(rate(smartlift_cache_requests_total{job=\"smartlift-api\",cache=\"prediction\",result=\"hit\"}[5m])) / clamp_min(sum(rate(smartlift_cache_requests_total{job=\"smartlift-api\",cache=\"prediction\"}[5m])), 1e-9)",
           "legendFormat": "hit ratio"
         }
       ],
@@ -307,7 +307,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{route!=\"/metrics\"}[1m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{job=\"smartlift-api\",route!=\"/metrics\"}[1m])))",
           "legendFormat": "p50"
         },
         {
@@ -316,7 +316,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{route!=\"/metrics\"}[1m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{job=\"smartlift-api\",route!=\"/metrics\"}[1m])))",
           "legendFormat": "p95"
         },
         {
@@ -325,7 +325,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{route!=\"/metrics\"}[1m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(smartlift_http_request_duration_seconds_bucket{job=\"smartlift-api\",route!=\"/metrics\"}[1m])))",
           "legendFormat": "p99"
         }
       ],
@@ -371,7 +371,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(smartlift_http_request_duration_seconds_bucket{route!=\"/metrics\"}[1m])))",
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(smartlift_http_request_duration_seconds_bucket{job=\"smartlift-api\",route!=\"/metrics\"}[1m])))",
           "legendFormat": "{{route}}"
         }
       ],
@@ -417,7 +417,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (route, status) (rate(smartlift_http_request_duration_seconds_count{route!=\"/metrics\"}[1m]))",
+          "expr": "sum by (route, status) (rate(smartlift_http_request_duration_seconds_count{job=\"smartlift-api\",route!=\"/metrics\"}[1m]))",
           "legendFormat": "{{route}} {{status}}"
         }
       ],
@@ -463,7 +463,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.50, sum by (le, cache) (rate(smartlift_inference_duration_seconds_bucket[1m])))",
+          "expr": "histogram_quantile(0.50, sum by (le, cache) (rate(smartlift_inference_duration_seconds_bucket{job=\"smartlift-api\"}[1m])))",
           "legendFormat": "p50 {{cache}}"
         },
         {
@@ -472,7 +472,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.99, sum by (le, cache) (rate(smartlift_inference_duration_seconds_bucket[1m])))",
+          "expr": "histogram_quantile(0.99, sum by (le, cache) (rate(smartlift_inference_duration_seconds_bucket{job=\"smartlift-api\"}[1m])))",
           "legendFormat": "p99 {{cache}}"
         }
       ],
@@ -518,7 +518,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (cache) (rate(smartlift_cache_requests_total{result=\"hit\"}[1m])) / clamp_min(sum by (cache) (rate(smartlift_cache_requests_total[1m])), 1e-9)",
+          "expr": "sum by (cache) (rate(smartlift_cache_requests_total{job=\"smartlift-api\",result=\"hit\"}[1m])) / clamp_min(sum by (cache) (rate(smartlift_cache_requests_total{job=\"smartlift-api\"}[1m])), 1e-9)",
           "legendFormat": "{{cache}} (1m)"
         },
         {
@@ -527,7 +527,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "smartlift_cache_hit_ratio",
+          "expr": "smartlift_cache_hit_ratio{job=\"smartlift-api\"}",
           "legendFormat": "{{cache}} (since start)"
         }
       ],
@@ -575,7 +575,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (outcome) (rate(smartlift_predictions_total[1m]))",
+          "expr": "sum by (outcome) (rate(smartlift_predictions_total{job=\"smartlift-api\"}[1m]))",
           "legendFormat": "{{outcome}}"
         }
       ],
@@ -625,7 +625,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (model_name, stage) (smartlift_model_version)",
+          "expr": "max by (model_name, stage) (smartlift_model_version{job=\"smartlift-api\"})",
           "legendFormat": "{{model_name}} {{stage}}"
         },
         {
@@ -634,7 +634,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(smartlift_model_reloads_total[5m])",
+          "expr": "increase(smartlift_model_reloads_total{job=\"smartlift-api\"}[5m])",
           "legendFormat": "reloads (5m)"
         }
       ],
@@ -680,7 +680,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(smartlift_cache_errors_total[1m])",
+          "expr": "rate(smartlift_cache_errors_total{job=\"smartlift-api\"}[1m])",
           "legendFormat": "redis errors/s"
         }
       ],
@@ -740,7 +740,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "smartlift_feature_psi",
+          "expr": "smartlift_feature_psi{job=\"smartlift-drift\"}",
           "legendFormat": "{{feature}}"
         }
       ],
@@ -809,7 +809,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(smartlift_feature_psi > 0.2) or vector(0)",
+          "expr": "count(smartlift_feature_psi{job=\"smartlift-drift\"} > 0.2) or vector(0)",
           "legendFormat": "drifted"
         }
       ],
@@ -866,7 +866,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "smartlift_drift_window_samples",
+          "expr": "smartlift_drift_window_samples{job=\"smartlift-drift\"}",
           "legendFormat": "samples in window"
         },
         {
@@ -875,7 +875,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (status) (increase(smartlift_drift_checks_total[30m]))",
+          "expr": "sum by (status) (increase(smartlift_drift_checks_total{job=\"smartlift-drift\"}[30m]))",
           "legendFormat": "checks: {{status}}"
         }
       ],
