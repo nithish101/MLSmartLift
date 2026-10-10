@@ -64,11 +64,17 @@ def latest_in_stage(client: MlflowClient, name: str, stage: str) -> ModelRef | N
 def promote(client: MlflowClient, name: str, version: int, stage: str, archive_existing: bool = True) -> ModelRef:
     if stage not in STAGES:
         raise ValueError(f"stage must be one of {STAGES}, got {stage!r}")
+    previous_stage = client.get_model_version(name, str(version)).current_stage
     with _stages_api():
         mv = client.transition_model_version_stage(
             name, str(version), stage, archive_existing_versions=archive_existing
         )
     client.set_registered_model_alias(name, stage.lower(), str(version))
+    # Keep aliases mirroring stages: the version left its old stage, so drop that alias if it still points here.
+    if previous_stage in STAGES and previous_stage != stage:
+        aliases = client.get_registered_model(name).aliases or {}
+        if aliases.get(previous_stage.lower()) == str(version):
+            client.delete_registered_model_alias(name, previous_stage.lower())
     return ModelRef(name=name, version=int(mv.version), stage=stage, run_id=mv.run_id)
 
 

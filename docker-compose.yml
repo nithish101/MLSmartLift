@@ -115,6 +115,12 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    # The image's HEALTHCHECK probes the API on :8000; the worker serves metrics on :9101.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9101/metrics')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   prometheus:
     image: prom/prometheus:v3.5.0

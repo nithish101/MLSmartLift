@@ -132,6 +132,12 @@ jobs:
           test "$(docker run --rm smartlift-api:ci id -u)" = "10001"
           ! docker run --rm smartlift-api:ci sh -c 'command -v uv'
           docker run --rm smartlift-api:ci python -c "import app.main"
+      - name: Image ships exactly the app source in this commit
+        run: |
+          docker run --rm --entrypoint sh smartlift-api:ci -c \
+            'cd /opt/venv/lib/python3.12/site-packages && find app -name "*.py" | LC_ALL=C sort | xargs sha256sum' > image.sums
+          (cd backend && find app -name "*.py" | LC_ALL=C sort | xargs sha256sum) > repo.sums
+          diff repo.sums image.sums
 
   perf-gate:
     name: Load test gate (locust)
@@ -148,6 +154,12 @@ jobs:
         env:
           KEEP_STACK: "1"  # leave containers up so the logs step below can read them
         run: backend/loadtest/run.sh
+      - name: Whole stack comes up healthy (drift worker, Prometheus, Grafana, frontend)
+        run: |
+          docker compose up -d --wait
+          curl -fsS localhost:9090/-/ready
+          curl -fsS localhost:3000/api/health
+          curl -fsS localhost:5173/ | grep -q '<div id="root">'
       - name: Service logs
         if: failure()
         run: docker compose logs --no-color api trainer migrate | tail -200

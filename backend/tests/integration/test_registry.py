@@ -44,6 +44,8 @@ def test_promotion_archives_previous_and_sets_alias(mlflow_uri, client_mlflow, m
     stages = {r.version: r.stage for r in registry.list_versions(client_mlflow, model_name)}
     assert stages == {v1.version: "Archived", v2.version: "Production"}
     assert client_mlflow.get_model_version_by_alias(model_name, "production").version == str(v2.version)
+    aliases = client_mlflow.get_registered_model(model_name).aliases
+    assert "staging" not in aliases  # v2 left Staging, so its alias went with it
 
 
 def test_promote_rejects_unknown_stage(client_mlflow):

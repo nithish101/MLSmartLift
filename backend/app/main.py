@@ -203,6 +203,8 @@ def register_routes(app: FastAPI) -> None:
     @app.post("/workouts", response_model=WorkoutResponse)
     def create_workout(workout: WorkoutCreate, db: DB, model: Model, inference: Infer) -> WorkoutResponse:
         """Log a new workout with sets."""
+        # History features as of before this session: what the model would have known going in.
+        context = inference.history_features(db, workout.exercise).context
         row = Workout(exercise=workout.exercise, bodyweight=workout.bodyweight)
         row.sets = [
             WorkoutSet(set_number=i, weight=s.weight, reps=s.reps, rir=max(s.rir, 0))
@@ -214,8 +216,18 @@ def register_routes(app: FastAPI) -> None:
         # Store the model's prediction for the top set, for predicted-vs-actual tracking.
         if model.loaded:
             top = max(workout.sets, key=lambda s: s.weight)
+            history = (
+                {
+                    "num_sets": context.num_sets,
+                    "frequency": context.frequency,
+                    "volume_score": context.volume_score,
+                    "progression_trend": context.progression_trend,
+                }
+                if context
+                else {}
+            )
             features = ModelInput(
-                exercise=workout.exercise, weight=top.weight, rir=top.rir, bodyweight=workout.bodyweight
+                exercise=workout.exercise, weight=top.weight, rir=top.rir, bodyweight=workout.bodyweight, **history
             )
             predicted = inference.predict(features, source="workout").reps
             db.add(
