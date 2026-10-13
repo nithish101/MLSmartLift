@@ -4,8 +4,8 @@
     "description": "AI-Powered Strength Training Assistant",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#0a0a0f",
-    "theme_color": "#0a0a0f",
+    "background_color": "#141413",
+    "theme_color": "#141413",
     "orientation": "portrait",
     "icons": [
         {

@@ -16,12 +16,15 @@ Right now it supports bench press, squat, and deadlift. The model was trained on
 
 ## Screenshots
 
-<div style="display: flex; gap: 10px; overflow-x: auto;">
-  <img src="frontend/screenshots/dashboard.webp" width="24%" alt="Dashboard Screenshot" />
-  <img src="frontend/screenshots/log.webp" width="24%" alt="Log Workout Screenshot" />
-  <img src="frontend/screenshots/ai_coach.webp" width="24%" alt="AI Coach Screenshot" />
-  <img src="frontend/screenshots/explainer.webp" width="24%" alt="Model Explainer Screenshot" />
-</div>
+| Dashboard | Log | AI Coach | How it works |
+|---|---|---|---|
+| ![Dashboard for bench press: estimated 1RM 195 lbs, up 11 lbs over 9 sessions, volume score 100, and the 1RM trend line](frontend/screenshots/dashboard.webp) | ![Log screen with three bench press sets of 155 lbs entered, reps and RIR per set](frontend/screenshots/log.webp) | ![AI Coach recommending 150 lbs for the next bench session: 6 expected reps at RIR 2, 86% model confidence, above the predicted vs actual reps chart](frontend/screenshots/ai_coach.webp) | ![How it works sheet explaining the gradient boosting model and its feature importance](frontend/screenshots/explainer.webp) |
+
+On desktop the tabs move into the header and the dashboard and AI Coach use two columns:
+
+![Desktop dashboard: 1RM, change, volume score and sessions in one row, with the 1RM trend and weekly volume side by side](frontend/screenshots/desktop_dashboard.webp)
+
+![Desktop AI Coach: the next-workout recommendation beside the predicted vs actual reps chart](frontend/screenshots/desktop_ai_coach.webp)
 
 ### Operations
 
@@ -306,9 +309,14 @@ backend/
     Dockerfile         Locust image for the compose "loadtest" service
 frontend/
   src/
-    App.jsx            tab navigation shell
+    App.jsx            app shell: header, tab bar, explainer, toast
     api.js             API client
-    components/        WorkoutLogger, Dashboard, Recommendation, ModelExplainer
+    index.css          design tokens and all styles
+    theme.js           chart colors and axis settings shared by the Recharts charts
+    exercises.js       supported exercises
+    hooks/             useExerciseData: per-exercise loading with stale-response guard
+    components/        WorkoutLogger, Dashboard, Recommendation, ModelExplainer,
+                       ExercisePicker, ChartTooltip, StatusMessage
 ```
 
 ## What I'd do next
