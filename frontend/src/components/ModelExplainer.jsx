@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const FEATURES = [
     { name: 'Weight Lifted', pct: 35.7, desc: 'The primary load used in the exercise' },
@@ -11,29 +11,56 @@ const FEATURES = [
     { name: 'Frequency', pct: 1.1, desc: 'Training sessions per week' },
 ];
 
+const MAX_PCT = Math.max(...FEATURES.map((f) => f.pct));
+
+const PERFORMANCE = [
+    { label: 'MAE (reps)', value: '1.15' },
+    { label: 'R² score', value: '0.38' },
+    { label: 'Training samples', value: '5,559' },
+    { label: 'Trees (estimators)', value: '200' },
+];
+
 export default function ModelExplainer({ isOpen, onClose }) {
+    const dialogRef = useRef(null);
     const [expandedFeature, setExpandedFeature] = useState(null);
 
-    if (!isOpen) return null;
+    useEffect(() => {
+        const dialog = dialogRef.current;
+        if (isOpen && !dialog.open) dialog.showModal();
+        if (!isOpen && dialog.open) dialog.close();
+    }, [isOpen]);
+
+    // A click whose target is the <dialog> itself landed on the backdrop.
+    const handleClick = (e) => {
+        if (e.target === dialogRef.current) dialogRef.current.close();
+    };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-handle" />
+        <dialog
+            ref={dialogRef}
+            className="sheet"
+            aria-labelledby="explainer-title"
+            onClose={onClose}
+            onClick={handleClick}
+        >
+            <div className="sheet-body">
+                <header className="sheet-head">
+                    <h2 id="explainer-title" className="sheet-title">How SmartLift works</h2>
+                    <button type="button" className="btn btn--quiet btn--sm" onClick={() => dialogRef.current.close()}>
+                        Close
+                    </button>
+                </header>
 
-                <h2 className="modal-title">🧠 How SmartLift Works</h2>
-
-                {/* Model Overview */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>The Model</h3>
                     <p>
                         SmartLift uses a <strong>Gradient Boosting Regression</strong> model trained on
                         strength progression data. It learns patterns from thousands of training sessions
                         to predict how many reps you can perform at a given weight.
                     </p>
-                </div>
+                </section>
 
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>Why Gradient Boosting?</h3>
                     <p>
                         Gradient Boosting excels at structured, tabular data — exactly what workout logs are.
@@ -41,99 +68,70 @@ export default function ModelExplainer({ isOpen, onClose }) {
                         from the previous ones. This gives us strong predictive accuracy while maintaining
                         interpretable feature importance.
                     </p>
-                </div>
+                </section>
 
-                {/* Feature Importance */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>Feature Importance</h3>
-                    <p style={{ marginBottom: 16 }}>
-                        These are the factors the model weighs when making predictions, ranked by importance:
-                    </p>
-                    <div className="feature-importance">
-                        {FEATURES.map((f, i) => (
-                            <div key={i}>
-                                <div
-                                    className="feature-row"
-                                    onClick={() => setExpandedFeature(expandedFeature === i ? null : i)}
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    <span className="feature-name">{f.name}</span>
-                                    <div className="feature-bar-bg">
-                                        <div
-                                            className="feature-bar"
-                                            style={{ width: `${(f.pct / 35.5) * 100}%` }}
-                                        />
-                                    </div>
-                                    <span className="feature-pct">{f.pct}%</span>
-                                </div>
-                                {expandedFeature === i && (
-                                    <div style={{
-                                        fontSize: '0.78rem',
-                                        color: '#9898a8',
-                                        padding: '4px 0 8px 0',
-                                        marginLeft: 120,
-                                        animation: 'fadeSlideIn 0.2s ease',
-                                    }}>
-                                        {f.desc}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                    <p>These are the factors the model weighs when making predictions, ranked by importance:</p>
+                    <ul className="features">
+                        {FEATURES.map((f, i) => {
+                            const expanded = expandedFeature === i;
+                            return (
+                                <li key={f.name}>
+                                    <button
+                                        type="button"
+                                        className="feature"
+                                        aria-expanded={expanded}
+                                        onClick={() => setExpandedFeature(expanded ? null : i)}
+                                    >
+                                        <span className="feature-name">{f.name}</span>
+                                        <span className="feature-track" aria-hidden="true">
+                                            <span className="feature-bar" style={{ width: `${(f.pct / MAX_PCT) * 100}%` }} />
+                                        </span>
+                                        <span className="feature-pct num">{f.pct}%</span>
+                                    </button>
+                                    {expanded && <p className="feature-desc">{f.desc}</p>}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </section>
 
-                {/* How Predictions Work */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>Prediction Pipeline</h3>
                     <p>
                         When you log a workout, the model takes your most recent performance data and predicts
-                        how many reps you'll achieve at various weights. The recommendation engine then:
+                        how many reps you&apos;ll achieve at various weights. The recommendation engine then:
                     </p>
-                    <ul style={{ color: '#9898a8', fontSize: '0.85rem', lineHeight: 1.8, paddingLeft: 20 }}>
+                    <ul>
                         <li>Predicts reps at your current working weight</li>
                         <li>If predicted reps {'>'} 9 → increases weight by 5 lbs</li>
                         <li>If predicted reps {'<'} 5 → decreases weight by 5 lbs</li>
                         <li>Targets the 5–9 rep hypertrophy range</li>
                         <li>Sets target RIR at 2 for productive training stimulus</li>
                     </ul>
-                </div>
+                </section>
 
-                {/* 1RM Estimation */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>1RM Estimation</h3>
                     <p>
                         Estimated one-rep max is calculated using the <strong>Epley formula</strong> with
                         an RIR adjustment:
                     </p>
-                    <div style={{
-                        background: '#1a1a26',
-                        border: '1px solid rgba(168,85,247,0.2)',
-                        borderRadius: 10,
-                        padding: '12px 16px',
-                        marginTop: 8,
-                        fontFamily: 'monospace',
-                        fontSize: '0.85rem',
-                        color: '#c084fc',
-                    }}>
-                        e1RM = weight × (1 + (reps + RIR) / 30)
-                    </div>
-                </div>
+                    <pre className="formula">e1RM = weight × (1 + (reps + RIR) / 30)</pre>
+                </section>
 
-                {/* Volume Score */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>Volume Score (0–100)</h3>
-                    <p>
-                        The volume score measures weekly training stress. It's calculated from:
-                    </p>
-                    <ul style={{ color: '#9898a8', fontSize: '0.85rem', lineHeight: 1.8, paddingLeft: 20 }}>
+                    <p>The volume score measures weekly training stress. It&apos;s calculated from:</p>
+                    <ul>
                         <li><strong>Set intensity:</strong> Lower RIR = higher stress per set</li>
                         <li><strong>Training frequency:</strong> More sessions = higher volume</li>
                         <li><strong>Muscle group:</strong> Compound lifts (squat, deadlift) generate more fatigue</li>
                     </ul>
-                </div>
+                </section>
 
-                {/* Recovery */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>Recovery Estimation</h3>
                     <p>
                         After each workout, SmartLift estimates the recovery time needed before your next
@@ -141,39 +139,20 @@ export default function ModelExplainer({ isOpen, onClose }) {
                         (lower RIR = more recovery), and total set volume. All fatigue is designed to be
                         fully recoverable before the next session — no deload weeks needed.
                     </p>
-                </div>
+                </section>
 
-                {/* Model Performance */}
-                <div className="explainer-section">
+                <section className="prose">
                     <h3>Model Performance</h3>
-                    <div className="stat-grid" style={{ marginTop: 8 }}>
-                        <div className="stat-card">
-                            <div className="stat-value">1.15</div>
-                            <div className="stat-label">MAE (reps)</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-value">0.38</div>
-                            <div className="stat-label">R² Score</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-value">5,559</div>
-                            <div className="stat-label">Training Samples</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-value">200</div>
-                            <div className="stat-label">Trees (Estimators)</div>
-                        </div>
-                    </div>
-                </div>
-
-                <button
-                    className="btn btn--secondary"
-                    onClick={onClose}
-                    style={{ marginTop: 8 }}
-                >
-                    Close
-                </button>
+                    <dl className="readout">
+                        {PERFORMANCE.map((m) => (
+                            <div key={m.label} className="readout-cell">
+                                <dt>{m.label}</dt>
+                                <dd><span className="num">{m.value}</span></dd>
+                            </div>
+                        ))}
+                    </dl>
+                </section>
             </div>
-        </div>
+        </dialog>
     );
 }

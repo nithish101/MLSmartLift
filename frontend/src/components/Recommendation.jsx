@@ -1,176 +1,116 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, Cell, Legend,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { api } from '../api';
+import { useExerciseData } from '../hooks/useExerciseData';
+import { chartTheme, axisProps, CHART_MARGIN, formatShortDate } from '../theme';
+import ExercisePicker from './ExercisePicker';
+import ChartTooltip from './ChartTooltip';
+import { Loading, LoadError } from './StatusMessage';
 
-const EXERCISES = [
-    { id: 'bench_press', label: 'Bench' },
-    { id: 'squat', label: 'Squat' },
-    { id: 'deadlift', label: 'Deadlift' },
-];
+const loadCoach = (exercise) =>
+    Promise.all([
+        api.getRecommendation(exercise),
+        api.getPredictedVsActual(exercise),
+        api.getAlerts(exercise),
+    ]).then(([rec, pva, alerts]) => ({ rec, pva, alerts }));
+
+const ALERT_LABELS = { warning: 'Warning', info: 'Info', tip: 'Tip' };
+
+const describeSession = (d) => ({
+    title: formatShortDate(d.date),
+    lines: [`Predicted ${d.predicted_reps} reps`, `Actual ${d.actual_reps} reps`, `at ${d.weight} lbs`],
+});
 
 export default function Recommendation() {
     const [exercise, setExercise] = useState('bench_press');
-    const [rec, setRec] = useState(null);
-    const [pva, setPva] = useState([]);
-    const [alerts, setAlerts] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        setLoading(true);
-        Promise.all([
-            api.getRecommendation(exercise),
-            api.getPredictedVsActual(exercise),
-            api.getAlerts(exercise),
-        ]).then(([r, p, a]) => {
-            setRec(r);
-            setPva(p);
-            setAlerts(a);
-            setLoading(false);
-        }).catch(() => setLoading(false));
-    }, [exercise]);
-
-    if (loading) {
-        return (
-            <div className="page">
-                <div className="loading">
-                    <div className="spinner"></div>
-                    <span>Generating recommendation...</span>
-                </div>
-            </div>
-        );
-    }
-
-    const alertIcons = { warning: '⚠️', info: 'ℹ️', tip: '💡' };
+    const { data, error, loading } = useExerciseData(exercise, loadCoach);
 
     return (
         <div className="page">
-            <h2 className="page-title">AI Recommendation</h2>
-
-            {/* Exercise Filter */}
-            <div className="exercise-pills">
-                {EXERCISES.map((ex) => (
-                    <button
-                        key={ex.id}
-                        className={`exercise-pill ${exercise === ex.id ? 'active' : ''}`}
-                        onClick={() => setExercise(ex.id)}
-                    >
-                        {ex.label}
-                    </button>
-                ))}
+            <div className="page-head">
+                <h1 className="page-title">AI Recommendation</h1>
+                <ExercisePicker value={exercise} onChange={setExercise} />
             </div>
 
-            {/* Recommendation Card */}
-            {rec && (
-                <div className="rec-card">
-                    <div className="card-label">Next Workout</div>
-                    <div className="rec-weight">
-                        {rec.recommended_weight}
-                        <span className="rec-unit"> lbs</span>
-                    </div>
-                    <div className="rec-details">
-                        <div className="rec-detail">
-                            <div className="rec-detail-value">{rec.expected_reps}</div>
-                            <div className="rec-detail-label">Expected Reps</div>
-                        </div>
-                        <div className="rec-detail">
-                            <div className="rec-detail-value">{rec.target_rir}</div>
-                            <div className="rec-detail-label">Target RIR</div>
-                        </div>
-                    </div>
+            {loading && <Loading>Generating recommendation…</Loading>}
+            {!loading && error && <LoadError />}
+            {!loading && data && <CoachBody {...data} />}
+        </div>
+    );
+}
 
-                    {/* Confidence */}
-                    <div style={{ marginTop: 16 }}>
-                        <div style={{
-                            display: 'flex', justifyContent: 'space-between',
-                            fontSize: '0.75rem', color: '#9898a8', marginBottom: 4,
-                        }}>
-                            <span>Model Confidence</span>
-                            <span>{Math.round(rec.confidence * 100)}%</span>
-                        </div>
-                        <div className="confidence-bar">
-                            <div
-                                className="confidence-fill"
-                                style={{ width: `${rec.confidence * 100}%` }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
+function CoachBody({ rec, pva, alerts }) {
+    const confidence = Math.round(rec.confidence * 100);
 
-            {/* Progression Alerts */}
-            {alerts.length > 0 && (
-                <>
-                    <div className="section-header">
-                        <span className="section-title">Progression Alerts</span>
-                    </div>
-                    {alerts.map((alert, i) => (
-                        <div key={i} className={`alert alert--${alert.type}`}>
-                            <span className="alert-icon">{alertIcons[alert.type] || 'ℹ️'}</span>
-                            <span>{alert.message}</span>
+    return (
+        <div className="panel-grid panel-grid--coach">
+            <div className="stack">
+                <section className="panel panel--primary" aria-labelledby="next-workout">
+                    <h2 id="next-workout" className="label">Next workout</h2>
+                    <p className="rec-weight">
+                        <span className="num">{rec.recommended_weight}</span>
+                        <span className="unit">lbs</span>
+                    </p>
+                    <dl className="spec">
+                        <div className="spec-row">
+                            <dt>Expected reps</dt>
+                            <dd className="num">{rec.expected_reps}</dd>
                         </div>
-                    ))}
-                </>
-            )}
+                        <div className="spec-row">
+                            <dt>Target RIR</dt>
+                            <dd className="num">{rec.target_rir}</dd>
+                        </div>
+                        <div className="spec-row">
+                            <dt>Model confidence</dt>
+                            <dd className="num">{confidence}%</dd>
+                        </div>
+                    </dl>
+                    <div className="meter-track" role="presentation">
+                        <div className="meter-fill meter-fill--ink" style={{ width: `${confidence}%` }} />
+                    </div>
+                </section>
 
-            {/* Predicted vs Actual Chart */}
+                {alerts.length > 0 && (
+                    <section className="panel" aria-labelledby="alerts-title">
+                        <h2 id="alerts-title" className="panel-title">Progression alerts</h2>
+                        <ul className="alerts">
+                            {alerts.map((alert) => (
+                                <li key={alert.message} className={`alert alert--${alert.type}`}>
+                                    <span className="alert-type">{ALERT_LABELS[alert.type] ?? 'Info'}</span>
+                                    <span>{alert.message}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+            </div>
+
             {pva.length > 0 && (
-                <div className="card" style={{ marginTop: 16 }}>
-                    <div className="card-header">
-                        <span className="card-title">Predicted vs Actual</span>
-                        <span className="card-label">Reps</span>
+                <section className="panel">
+                    <header className="panel-head">
+                        <h2 className="panel-title">Predicted vs Actual</h2>
+                        <span className="panel-meta">reps per session</span>
+                    </header>
+                    <div className="legend" aria-hidden="true">
+                        <span className="legend-key legend-key--predicted">Predicted</span>
+                        <span className="legend-key legend-key--actual">Actual</span>
                     </div>
-                    <div className="chart-container" style={{ height: 240 }}>
+                    <div className="chart chart--tall">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={pva} barGap={2}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                <XAxis
-                                    dataKey="date"
-                                    tick={{ fill: '#5a5a6e', fontSize: 9 }}
-                                    tickFormatter={(d) => d.slice(5)}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis
-                                    tick={{ fill: '#5a5a6e', fontSize: 10 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    contentStyle={{
-                                        background: '#1e1e2a',
-                                        border: '1px solid rgba(168,85,247,0.3)',
-                                        borderRadius: 10,
-                                        fontSize: '0.78rem',
-                                    }}
-                                    labelStyle={{ color: '#5a5a6e' }}
-                                />
-                                <Legend
-                                    wrapperStyle={{ fontSize: '0.72rem', color: '#9898a8' }}
-                                />
-                                <Bar
-                                    dataKey="predicted_reps"
-                                    name="Predicted"
-                                    fill="#a855f7"
-                                    radius={[3, 3, 0, 0]}
-                                    maxBarSize={20}
-                                />
-                                <Bar
-                                    dataKey="actual_reps"
-                                    name="Actual"
-                                    fill="#f97316"
-                                    radius={[3, 3, 0, 0]}
-                                    maxBarSize={20}
-                                />
+                            <BarChart data={pva} barGap={2} margin={CHART_MARGIN}>
+                                <CartesianGrid vertical={false} stroke={chartTheme.grid} />
+                                <XAxis dataKey="date" {...axisProps} tickFormatter={formatShortDate} minTickGap={16} />
+                                <YAxis {...axisProps} allowDecimals={false} width={48} />
+                                <Tooltip content={<ChartTooltip describe={describeSession} />} cursor={{ fill: chartTheme.grid }} />
+                                <Bar dataKey="predicted_reps" name="Predicted" fill={chartTheme.bar} maxBarSize={14} isAnimationActive={false} />
+                                <Bar dataKey="actual_reps" name="Actual" fill={chartTheme.ink} maxBarSize={14} isAnimationActive={false} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="card-sub" style={{ textAlign: 'center', marginTop: 8 }}>
-                        Compare AI predictions to your real performance
-                    </div>
-                </div>
+                    <p className="panel-foot">Compare AI predictions to your real performance.</p>
+                </section>
             )}
         </div>
     );
